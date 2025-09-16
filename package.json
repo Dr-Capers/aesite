@@ -1,0 +1,22 @@
+{
+  "name": "arcade-earth-site",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Arcade Earth's launch announcement site built with Vite",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "arcade",
+    "landing-page",
+    "vite"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "vite": "^7.1.5"
+  }
+}
