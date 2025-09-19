@@ -1,8 +1,10 @@
 const DEFAULT_STATE_META = {
-  idle: { priority: 0, fps: 30, loop: true, fallback: 'idle' },
-  hover: { priority: 1, fps: 30, loop: true, fallback: 'hover' },
-  idleLong: { priority: 3, fps: 30, loop: false, fallback: 'idle' },
-  wave: { priority: 4, fps: 30, loop: false, fallback: 'hover' },
+  idle: { priority: 0, fps: 60, loop: true, fallback: 'idle' },
+  hover: { priority: 1, fps: 60, loop: true, fallback: 'hover' },
+  looking: { priority: 2, fps: 60, loop: true, fallback: 'idle' },
+  idleLong: { priority: 3, fps: 60, loop: false, fallback: 'idle' },
+  wave: { priority: 4, fps: 60, loop: false, fallback: 'hover' },
+  sneeze: { priority: 5, fps: 60, loop: false, fallback: 'idle' },
 };
 
 const DEFAULT_OPTIONS = {
@@ -34,6 +36,10 @@ const FOLDER_STATE_MAP = {
   Iddle: { state: 'hover', fps: DEFAULT_STATE_META.hover.fps },
   StandUP: { state: 'wave', fps: DEFAULT_STATE_META.wave.fps },
   SitDown: { state: 'idleLong', fps: DEFAULT_STATE_META.idleLong.fps },
+  Looking: { state: 'looking', fps: DEFAULT_STATE_META.looking.fps },
+  Sneeze: { state: 'sneeze', fps: DEFAULT_STATE_META.sneeze.fps },
+  looking: { state: 'looking', fps: DEFAULT_STATE_META.looking.fps },
+  sneeze: { state: 'sneeze', fps: DEFAULT_STATE_META.sneeze.fps },
 };
 
 /**
@@ -402,6 +408,18 @@ export class CharacterController {
     return next;
   }
 
+  playLoopingState(state, { loops = 1, fallback } = {}) {
+    const sequence = this.getSequence(state);
+    if (!sequence || sequence.frames.length === 0) {
+      return;
+    }
+
+    const meta = this.getMetaForState(state);
+    const fps = meta?.fps ?? sequence.fps ?? 6;
+    const duration = (loops * sequence.frames.length * 1000) / Math.max(fps, 1);
+    this.playTransientState(state, duration + 120, { fallback });
+  }
+
   playTransientState(state, duration = 2200, { fallback } = {}) {
     if (!this.sequences[state] || !this.canInterrupt(state)) {
       return;
@@ -431,15 +449,19 @@ export function loadCharacterSequences(folderOverrides = {}) {
   const byState = {
     idle: [],
     hover: [],
+    looking: [],
     wave: [],
     idleLong: [],
+    sneeze: [],
   };
 
   const sequences = {
     idle: { frames: [], fps: DEFAULT_STATE_META.idle.fps },
     hover: { frames: [], fps: DEFAULT_STATE_META.hover.fps },
+    looking: { frames: [], fps: DEFAULT_STATE_META.looking.fps },
     wave: { frames: [], fps: DEFAULT_STATE_META.wave.fps },
     idleLong: { frames: [], fps: DEFAULT_STATE_META.idleLong.fps },
+    sneeze: { frames: [], fps: DEFAULT_STATE_META.sneeze.fps },
   };
 
   for (const [path, module] of Object.entries(ANIMATION_MODULES)) {
