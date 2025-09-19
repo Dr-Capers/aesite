@@ -24,23 +24,9 @@
       </div>
     </header>
 
-    <section class="status-card" aria-live="polite">
-      <h2 class="status-card__heading">New website orbit incoming</h2>
-      <p class="status-card__description">
-        We are rebuilding the Arcade Earth experience with fresh cosmic energy.
-        Dock again soon to explore exclusive games, lunar leaderboards, and more.
-      </p>
-      <div class="status-card__progress" role="status">
-        <div class="status-card__progress-bar">
-          <span class="status-card__progress-meter" style="width: 68%"></span>
-        </div>
-        <p class="status-card__progress-label">Systems check 68% complete</p>
-      </div>
-      <form class="status-card__form" aria-label="Notify me">
-        <label class="sr-only" for="email">Email address</label>
-        <input id="email" type="email" name="email" placeholder="Join the launch list" required>
-        <button type="submit">Notify me</button>
-      </form>
+    <section class="character-panel" aria-label="Arcade Earth mission specialist">
+      <h2 class="sr-only">Arcade Earth mascot</h2>
+      <div class="character-display" data-character role="img" aria-label="Arcade Earth mascot animation" tabindex="0"></div>
     </section>
 
     <footer class="footer">
@@ -48,6 +34,11 @@
         <span class="footer__pulse" aria-hidden="true"></span>
         <p>Landing before the next solar flare &mdash; stay tuned.</p>
       </div>
+      <form class="footer-signup" aria-label="Join the launch list">
+        <label class="sr-only" for="email">Email address</label>
+        <input id="email" type="email" name="email" placeholder="Join the launch list" required>
+        <button type="submit">Notify me</button>
+      </form>
       <ul class="footer__social" aria-label="Socials">
         <li><a href="https://instagram.com" target="_blank" rel="noreferrer">Instagram</a></li>
         <li><a href="https://discord.com" target="_blank" rel="noreferrer">Discord</a></li>

@@ -1,5 +1,5 @@
 export function initSignupForm() {
-  const form = document.querySelector('.status-card__form');
+  const form = document.querySelector('.footer-signup');
   const emailInput = document.querySelector('#email');
 
   if (!form || !emailInput) {
@@ -31,6 +31,10 @@ export function initSignupForm() {
       toast.role = 'status';
       toast.textContent = 'Thanks, captain! We will ping you before liftoff.';
       document.body.appendChild(toast);
+
+      form.dispatchEvent(
+        new CustomEvent('signup:success', { bubbles: true })
+      );
 
       window.setTimeout(() => {
         toast.classList.add('toast--visible');
