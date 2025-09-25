@@ -1,10 +1,19 @@
+const DEFAULT_ANIMATION_FPS = 60;
+const HERO_STATES = new Set(['idle', 'hover', 'spin', 'selfie']);
+const BUFFER_AHEAD_MIN = 3;
+const PRIORITY_FRAME_PRIMER_COUNT = 6;
+const FRAME_DROP_WINDOW_MS = 4000;
+const IDLE_SCHEDULER_TIMEOUT = 2000;
+
 const DEFAULT_STATE_META = {
-  idle: { priority: 0, fps: 60, loop: true, fallback: 'idle' },
-  hover: { priority: 1, fps: 60, loop: true, fallback: 'hover' },
-  looking: { priority: 2, fps: 60, loop: true, fallback: 'idle' },
-  idleLong: { priority: 3, fps: 60, loop: false, fallback: 'idle' },
-  wave: { priority: 4, fps: 60, loop: false, fallback: 'hover' },
-  sneeze: { priority: 5, fps: 60, loop: false, fallback: 'idle' },
+  idle: { priority: 0, fps: DEFAULT_ANIMATION_FPS, loop: true, fallback: 'idle' },
+  hover: { priority: 1, fps: DEFAULT_ANIMATION_FPS, loop: true, fallback: 'hover' },
+  looking: { priority: 2, fps: DEFAULT_ANIMATION_FPS, loop: true, fallback: 'idle' },
+  idleLong: { priority: 3, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'idle' },
+  wave: { priority: 4, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'hover' },
+  sneeze: { priority: 5, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'idle' },
+  spin: { priority: 6, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'idle' },
+  selfie: { priority: 7, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'idle' },
 };
 
 const DEFAULT_OPTIONS = {
@@ -29,18 +38,115 @@ function detectCoarsePointer() {
   }
 }
 
-const ANIMATION_MODULES = import.meta.glob('./animations/*/*.{webp,png}', { eager: true });
+const ANIMATION_MODULES = {
+  ...import.meta.glob('./animations/*/*.{webp,png}', { eager: true }),
+  ...import.meta.glob('../../assets/SecuenceTest/*/*.{webp,png}', { eager: true }),
+};
 
 const FOLDER_STATE_MAP = {
-  Fixing: { state: 'idle', fps: DEFAULT_STATE_META.idle.fps },
-  Iddle: { state: 'hover', fps: DEFAULT_STATE_META.hover.fps },
-  StandUP: { state: 'wave', fps: DEFAULT_STATE_META.wave.fps },
-  SitDown: { state: 'idleLong', fps: DEFAULT_STATE_META.idleLong.fps },
-  Looking: { state: 'looking', fps: DEFAULT_STATE_META.looking.fps },
-  Sneeze: { state: 'sneeze', fps: DEFAULT_STATE_META.sneeze.fps },
-  looking: { state: 'looking', fps: DEFAULT_STATE_META.looking.fps },
-  sneeze: { state: 'sneeze', fps: DEFAULT_STATE_META.sneeze.fps },
+  Fixing: { state: 'idle', fps: DEFAULT_ANIMATION_FPS },
+  Iddle: { state: 'hover', fps: DEFAULT_ANIMATION_FPS },
+  StandUP: { state: 'wave', fps: DEFAULT_ANIMATION_FPS },
+  SitDown: { state: 'idleLong', fps: DEFAULT_ANIMATION_FPS },
+  Looking: { state: 'looking', fps: DEFAULT_ANIMATION_FPS },
+  Sneeze: { state: 'sneeze', fps: DEFAULT_ANIMATION_FPS },
+  looking: { state: 'looking', fps: DEFAULT_ANIMATION_FPS },
+  sneeze: { state: 'sneeze', fps: DEFAULT_ANIMATION_FPS },
+  Spin: { state: 'spin', fps: DEFAULT_ANIMATION_FPS },
+  spin: { state: 'spin', fps: DEFAULT_ANIMATION_FPS },
+  Selfie: { state: 'selfie', fps: DEFAULT_ANIMATION_FPS },
+  selfie: { state: 'selfie', fps: DEFAULT_ANIMATION_FPS },
 };
+
+const GLOBAL_PRELOAD_CACHE = new Map();
+const GLOBAL_PRELOAD_IDLE_HANDLES = new Set();
+
+function scheduleGlobalIdlePreload(callback) {
+  if (typeof window === 'undefined') {
+    callback();
+    return;
+  }
+
+  if (typeof window.requestIdleCallback === 'function') {
+    const handleObj = { type: 'idle', handle: null };
+    handleObj.handle = window.requestIdleCallback(
+      () => {
+        GLOBAL_PRELOAD_IDLE_HANDLES.delete(handleObj);
+        callback();
+      },
+      { timeout: IDLE_SCHEDULER_TIMEOUT }
+    );
+    GLOBAL_PRELOAD_IDLE_HANDLES.add(handleObj);
+    return;
+  }
+
+  const handleObj = { type: 'timeout', handle: null };
+  handleObj.handle = window.setTimeout(() => {
+    GLOBAL_PRELOAD_IDLE_HANDLES.delete(handleObj);
+    callback();
+  }, 32);
+  GLOBAL_PRELOAD_IDLE_HANDLES.add(handleObj);
+}
+
+function ensureGlobalPreloadRecord(src, { highPriority = false } = {}) {
+  if (!src || typeof window === 'undefined') {
+    return null;
+  }
+
+  const existing = GLOBAL_PRELOAD_CACHE.get(src);
+  if (existing) {
+    if (highPriority && existing.image && 'fetchPriority' in existing.image) {
+      existing.image.fetchPriority = 'high';
+    }
+    return existing;
+  }
+
+  const image = new Image();
+  if (highPriority && 'fetchPriority' in image) {
+    image.fetchPriority = 'high';
+  }
+  if ('decoding' in image) {
+    image.decoding = highPriority ? 'sync' : 'async';
+  }
+
+  const record = { image, ready: false, error: false, promise: null };
+  let resolved = false;
+
+  const finalize = (error = false) => {
+    if (resolved) {
+      return record;
+    }
+    resolved = true;
+    record.ready = !error;
+    record.error = error;
+    return record;
+  };
+
+  const promise = new Promise((resolve) => {
+    const fulfill = (error = false) => resolve(finalize(error));
+    image.addEventListener(
+      'load',
+      () => {
+        if (typeof image.decode === 'function') {
+          image
+            .decode()
+            .then(() => fulfill(false))
+            .catch(() => fulfill(false));
+        } else {
+          fulfill(false);
+        }
+      },
+      { once: true }
+    );
+    image.addEventListener('error', () => fulfill(true), { once: true });
+  });
+
+  record.promise = promise;
+  GLOBAL_PRELOAD_CACHE.set(src, record);
+  image.src = src;
+
+  return record;
+}
 
 /**
  * Simple state-driven sprite animator intended to be swapped with real frame data later.
@@ -89,9 +195,19 @@ export class CharacterController {
     this.autoCycleIndex = 0;
     this.transientTimeouts = new Set();
     this.lastVisibilityGreeting = 0;
+    this.preloadedFrames = new Map();
+    this.frameDropHistory = [];
+    this.dynamicFpsScale = 1;
+    this.fpsRecoveryTimeout = null;
+    this.performanceMarksEnabled =
+      typeof performance !== 'undefined' && typeof performance.mark === 'function';
+    this.backgroundPreloadHandles = new Set();
 
     this.image = document.createElement('img');
     this.image.className = 'character-display__sprite';
+    if ('decoding' in this.image) {
+      this.image.decoding = 'sync';
+    }
     this.image.alt = alt;
     this.mount.appendChild(this.image);
 
@@ -113,8 +229,27 @@ export class CharacterController {
 
     this.autoCycleStates = this.autoCycleStates.filter((state) => Boolean(this.sequences[state]));
 
-    this.renderFrame();
-    this.start();
+    this.readyPromise = this.preloadSequences(this.sequences)
+      .catch((error) => {
+        console.error('Character preload failed', error);
+        return null;
+      })
+      .finally(() => {
+        if (this.isDestroyed) {
+          return;
+        }
+        this.scheduleBufferFill(this.currentState);
+        this.renderFrame(true);
+        this.start();
+      });
+
+    if (this.shouldReduceMotion) {
+      this.readyPromise.then(() => {
+        if (!this.isDestroyed) {
+          this.renderFrame(true);
+        }
+      });
+    }
   }
 
   start() {
@@ -123,6 +258,10 @@ export class CharacterController {
     }
     this.lastFrameTime = performance.now();
     this.rafId = requestAnimationFrame(this.loop);
+  }
+
+  ready() {
+    return this.readyPromise ?? Promise.resolve();
   }
 
   stop() {
@@ -137,7 +276,14 @@ export class CharacterController {
     this.isDestroyed = true;
     this.clearAutoCycle();
     this.clearTransientTimeouts();
+    this.cancelBackgroundPreload();
+    if (this.fpsRecoveryTimeout) {
+      window.clearTimeout(this.fpsRecoveryTimeout);
+      this.fpsRecoveryTimeout = null;
+    }
     this.reducedMotionQuery.removeEventListener('change', this.onReducedMotionChange);
+    this.preloadedFrames.clear();
+    this.frameDropHistory = [];
     this.mount.replaceChildren();
   }
 
@@ -146,27 +292,55 @@ export class CharacterController {
       return;
     }
 
-    const meta = this.getMetaForState(this.currentState);
-    const sequence = this.getSequence(this.currentState);
+    let meta = this.getMetaForState(this.currentState);
+    let sequence = this.getSequence(this.currentState);
 
     if (!sequence) {
+      this.rafId = requestAnimationFrame(this.loop);
       return;
     }
 
-    const fps = meta?.fps ?? sequence.fps ?? 6;
-    const frameInterval = 1000 / Math.max(fps, 1);
+    const baseFps = meta?.fps ?? sequence.fps ?? DEFAULT_ANIMATION_FPS;
+    const effectiveFps = Math.max(1, baseFps * this.dynamicFpsScale);
+    const frameInterval = 1000 / effectiveFps;
+    const elapsed = timestamp - this.lastFrameTime;
 
-    if (timestamp - this.lastFrameTime >= frameInterval) {
-      this.frameIndex += 1;
-      if (this.frameIndex >= sequence.frames.length) {
-        if (meta?.loop) {
-          this.frameIndex = 0;
+    if (elapsed >= frameInterval) {
+      const frameCount = sequence.frames.length;
+      if (frameCount > 0) {
+        const nextIndex = (this.frameIndex + 1) % frameCount;
+        const nextFrame = sequence.frames[nextIndex];
+
+        if (nextFrame && !this.isFrameReady(nextFrame)) {
+          this.scheduleBufferFill(this.currentState);
+          this.handleFrameStall(timestamp, frameInterval);
         } else {
-          this.handleSequenceComplete();
+          this.frameIndex += 1;
+          if (this.frameIndex >= frameCount) {
+            if (meta?.loop) {
+              this.frameIndex = 0;
+            } else {
+              this.handleSequenceComplete();
+              meta = this.getMetaForState(this.currentState);
+              sequence = this.getSequence(this.currentState);
+              if (!sequence) {
+                this.lastFrameTime = timestamp;
+                this.evaluateState(timestamp);
+                this.rafId = requestAnimationFrame(this.loop);
+                return;
+              }
+            }
+          }
+          this.renderFrame();
+          if (elapsed > frameInterval * 1.5) {
+            this.recordFrameDrop(elapsed, frameInterval);
+          } else {
+            this.resetFpsScaling();
+          }
+          this.lastFrameTime = timestamp;
+          this.scheduleBufferFill(this.currentState);
         }
       }
-      this.renderFrame();
-      this.lastFrameTime = timestamp;
     }
 
     this.evaluateState(timestamp);
@@ -174,13 +348,29 @@ export class CharacterController {
     this.rafId = requestAnimationFrame(this.loop);
   }
 
-  renderFrame() {
+  renderFrame(force = false) {
     const sequence = this.getSequence(this.currentState);
     if (!sequence || sequence.frames.length === 0) {
       return;
     }
     const frame = sequence.frames[this.frameIndex % sequence.frames.length];
-    if (frame && this.image.src !== frame) {
+    if (!frame) {
+      return;
+    }
+
+    const record = this.preloadedFrames.get(frame);
+    const preloadedImage = record?.image ?? (record instanceof Image ? record : null);
+    const preferredSrc = preloadedImage?.currentSrc || preloadedImage?.src || frame;
+    const isReady = Boolean(record?.ready || preloadedImage?.complete);
+
+    if (isReady && preloadedImage) {
+      if (force || this.image.src !== preferredSrc) {
+        this.image.src = preferredSrc;
+      }
+      return;
+    }
+
+    if (force || this.image.src !== frame) {
       this.image.src = frame;
     }
   }
@@ -218,6 +408,7 @@ export class CharacterController {
       this.lastInteraction = performance.now();
     }
     this.renderFrame();
+    this.scheduleBufferFill(nextState);
   }
 
   trigger(state, { immediate = false } = {}) {
@@ -443,16 +634,276 @@ export class CharacterController {
     this.transientTimeouts.forEach((timeoutId) => window.clearTimeout(timeoutId));
     this.transientTimeouts.clear();
   }
+
+  scheduleBufferFill(state) {
+    if (!state || typeof window === 'undefined') {
+      return;
+    }
+
+    const sequence = this.sequences[state];
+    if (!sequence?.frames?.length) {
+      return;
+    }
+
+    const frameCount = sequence.frames.length;
+    const startIndex = state === this.currentState ? this.frameIndex : 0;
+
+    for (let offset = 0; offset <= BUFFER_AHEAD_MIN; offset += 1) {
+      const index = (startIndex + offset) % frameCount;
+      const src = sequence.frames[index];
+      if (!src || this.isFrameReady(src)) {
+        continue;
+      }
+      const highPriority = state === this.currentState && offset <= 1;
+      if (highPriority) {
+        this.preloadFrame(src, { highPriority: true });
+      } else {
+        this.scheduleIdleTask(() => this.preloadFrame(src));
+      }
+    }
+  }
+
+  isFrameReady(src) {
+    const record = this.preloadedFrames.get(src);
+    if (!record) {
+      return false;
+    }
+    if (record?.ready && record.image) {
+      return true;
+    }
+    if (record instanceof Image) {
+      return record.complete;
+    }
+    const image = record?.image;
+    return Boolean(image?.complete);
+  }
+
+  handleFrameStall(timestamp, frameInterval) {
+    this.recordFrameDrop(timestamp - this.lastFrameTime, frameInterval);
+    this.dynamicFpsScale = Math.max(0.5, this.dynamicFpsScale * 0.85);
+    this.lastFrameTime = timestamp - frameInterval * 0.5;
+    if (this.fpsRecoveryTimeout) {
+      window.clearTimeout(this.fpsRecoveryTimeout);
+    }
+    this.fpsRecoveryTimeout = window.setTimeout(() => this.resetFpsScaling(), FRAME_DROP_WINDOW_MS);
+  }
+
+  resetFpsScaling() {
+    if (this.dynamicFpsScale === 1) {
+      return;
+    }
+    this.dynamicFpsScale = 1;
+    if (this.fpsRecoveryTimeout) {
+      window.clearTimeout(this.fpsRecoveryTimeout);
+      this.fpsRecoveryTimeout = null;
+    }
+  }
+
+  recordFrameDrop(elapsed, expected) {
+    if (!Number.isFinite(elapsed) || !Number.isFinite(expected)) {
+      return;
+    }
+    const now = performance.now();
+    this.frameDropHistory.push({ timestamp: now, elapsed, expected });
+    this.frameDropHistory = this.frameDropHistory.filter(
+      (entry) => now - entry.timestamp <= FRAME_DROP_WINDOW_MS
+    );
+    if (this.performanceMarksEnabled) {
+      performance.mark(`character-frame-drop-${Math.round(now)}`);
+    }
+  }
+
+  async preloadSequences(sequences) {
+    if (!sequences || typeof window === 'undefined') {
+      return;
+    }
+
+    const heroStates = Array.from(HERO_STATES).filter((state) =>
+      Array.isArray(sequences[state]?.frames) && sequences[state].frames.length > 0
+    );
+
+    const primerPromises = heroStates.map((state) =>
+      this.preloadStateFrames(state, {
+        limit: PRIORITY_FRAME_PRIMER_COUNT,
+        highPriority: true,
+      })
+    );
+
+    await Promise.all(primerPromises);
+
+    const heroRemainderPromises = heroStates.map((state) =>
+      this.preloadStateFrames(state, { highPriority: true })
+    );
+
+    const remainingStates = Object.keys(sequences).filter(
+      (state) =>
+        !HERO_STATES.has(state) &&
+        Array.isArray(sequences[state]?.frames) &&
+        sequences[state].frames.length > 0
+    );
+
+    remainingStates.forEach((state) => {
+      this.scheduleIdleTask(() => this.preloadStateFrames(state));
+    });
+
+    await Promise.all(heroRemainderPromises);
+  }
+
+  preloadStateFrames(state, { limit, highPriority } = {}) {
+    if (this.isDestroyed) {
+      return Promise.resolve();
+    }
+    const sequence = this.sequences[state];
+    const frames = sequence?.frames;
+    if (!Array.isArray(frames) || !frames.length) {
+      return Promise.resolve();
+    }
+
+    const slice = typeof limit === 'number' ? frames.slice(0, limit) : frames;
+    if (!slice.length) {
+      return Promise.resolve();
+    }
+
+    const promises = slice.map((src) => this.preloadFrame(src, { highPriority }));
+    return Promise.all(promises);
+  }
+
+  preloadFrame(src, { highPriority = false } = {}) {
+    if (!src || typeof window === 'undefined' || this.isDestroyed) {
+      return Promise.resolve(null);
+    }
+
+    const existing = this.preloadedFrames.get(src);
+    if (existing?.ready) {
+      return Promise.resolve(existing);
+    }
+    if (existing?.promise) {
+      return existing.promise;
+    }
+    const globalRecord = ensureGlobalPreloadRecord(src, { highPriority });
+    if (!globalRecord) {
+      return Promise.resolve(null);
+    }
+
+    this.preloadedFrames.set(src, globalRecord);
+
+    if (globalRecord.ready) {
+      return Promise.resolve(globalRecord);
+    }
+
+    if (globalRecord.promise) {
+      return globalRecord.promise.then(() => globalRecord);
+    }
+
+    return Promise.resolve(globalRecord);
+  }
+
+  scheduleIdleTask(callback) {
+    if (typeof window === 'undefined') {
+      callback();
+      return;
+    }
+
+    if (typeof window.requestIdleCallback === 'function') {
+      const handleObj = { type: 'idle', handle: null };
+      handleObj.handle = window.requestIdleCallback(
+        () => {
+          this.backgroundPreloadHandles.delete(handleObj);
+          if (this.isDestroyed) {
+            return;
+          }
+          callback();
+        },
+        { timeout: IDLE_SCHEDULER_TIMEOUT }
+      );
+      this.backgroundPreloadHandles.add(handleObj);
+      return;
+    }
+
+    const handleObj = { type: 'timeout', handle: null };
+    handleObj.handle = window.setTimeout(() => {
+      this.backgroundPreloadHandles.delete(handleObj);
+      if (this.isDestroyed) {
+        return;
+      }
+      callback();
+    }, 32);
+    this.backgroundPreloadHandles.add(handleObj);
+  }
+
+  cancelBackgroundPreload() {
+    if (!this.backgroundPreloadHandles) {
+      return;
+    }
+    this.backgroundPreloadHandles.forEach((entry) => {
+      if (entry.type === 'idle' && typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(entry.handle);
+      }
+      if (entry.type === 'timeout') {
+        window.clearTimeout(entry.handle);
+      }
+    });
+    this.backgroundPreloadHandles.clear();
+  }
+}
+
+export function primeCharacterAssets(sequences = loadCharacterSequences()) {
+  if (typeof window === 'undefined') {
+    return Promise.resolve();
+  }
+
+  const heroPromises = [];
+
+  HERO_STATES.forEach((state) => {
+    const frames = sequences?.[state]?.frames;
+    if (!Array.isArray(frames) || !frames.length) {
+      return;
+    }
+    frames.forEach((src, index) => {
+      if (!src) {
+        return;
+      }
+      const record = ensureGlobalPreloadRecord(src, {
+        highPriority: index < PRIORITY_FRAME_PRIMER_COUNT,
+      });
+      if (record?.promise) {
+        heroPromises.push(record.promise);
+      }
+    });
+  });
+
+  Object.keys(sequences || {})
+    .filter((state) => !HERO_STATES.has(state))
+    .forEach((state) => {
+      const frames = sequences?.[state]?.frames;
+      if (!Array.isArray(frames) || !frames.length) {
+        return;
+      }
+      frames.forEach((src) => {
+        if (!src) {
+          return;
+        }
+        scheduleGlobalIdlePreload(() => ensureGlobalPreloadRecord(src));
+      });
+    });
+
+  if (!heroPromises.length) {
+    return Promise.resolve();
+  }
+
+  return Promise.allSettled(heroPromises).then(() => undefined);
 }
 
 export function loadCharacterSequences(folderOverrides = {}) {
   const byState = {
-    idle: [],
-    hover: [],
-    looking: [],
-    wave: [],
-    idleLong: [],
-    sneeze: [],
+    idle: { entries: [], priority: 0 },
+    hover: { entries: [], priority: 0 },
+    looking: { entries: [], priority: 0 },
+    wave: { entries: [], priority: 0 },
+    idleLong: { entries: [], priority: 0 },
+    sneeze: { entries: [], priority: 0 },
+    spin: { entries: [], priority: 0 },
+    selfie: { entries: [], priority: 0 },
   };
 
   const sequences = {
@@ -462,14 +913,21 @@ export function loadCharacterSequences(folderOverrides = {}) {
     wave: { frames: [], fps: DEFAULT_STATE_META.wave.fps },
     idleLong: { frames: [], fps: DEFAULT_STATE_META.idleLong.fps },
     sneeze: { frames: [], fps: DEFAULT_STATE_META.sneeze.fps },
+    spin: { frames: [], fps: DEFAULT_STATE_META.spin.fps },
+    selfie: { frames: [], fps: DEFAULT_STATE_META.selfie.fps },
   };
 
   for (const [path, module] of Object.entries(ANIMATION_MODULES)) {
-    const match = path.match(/animations\/(.*?)\/(.*?)\.(png|webp)$/);
-    if (!match) {
+    const normalizedPath = String(path).replace(/\\/g, '/');
+    const parts = normalizedPath.split('/');
+    if (parts.length < 2) {
       continue;
     }
-    const folder = match[1];
+    const fileName = parts[parts.length - 1];
+    if (!/\.(png|webp)$/i.test(fileName)) {
+      continue;
+    }
+    const folder = parts[parts.length - 2];
     const mapping = folderOverrides[folder] ?? FOLDER_STATE_MAP[folder];
     const stateKey = typeof mapping === 'string' ? mapping : mapping?.state;
     if (!stateKey || !(stateKey in byState)) {
@@ -477,19 +935,27 @@ export function loadCharacterSequences(folderOverrides = {}) {
     }
 
     const frameUrl = module?.default ?? module;
-    byState[stateKey].push({ path, frameUrl });
+    const bucket = byState[stateKey];
+    const priority = normalizedPath.includes('SecuenceTest') ? 2 : 1;
+    if (priority > bucket.priority) {
+      bucket.entries = [];
+      bucket.priority = priority;
+    }
+    if (priority === bucket.priority) {
+      bucket.entries.push({ path, frameUrl });
+    }
 
     if (mapping?.fps) {
       sequences[stateKey].fps = mapping.fps;
     }
   }
 
-  Object.entries(byState).forEach(([stateKey, entries]) => {
-    if (!entries.length) {
+  Object.entries(byState).forEach(([stateKey, bucket]) => {
+    if (!bucket.entries.length) {
       return;
     }
-    entries.sort((a, b) => a.path.localeCompare(b.path));
-    sequences[stateKey].frames = entries.map((entry) => entry.frameUrl);
+    bucket.entries.sort((a, b) => a.path.localeCompare(b.path));
+    sequences[stateKey].frames = bucket.entries.map((entry) => entry.frameUrl);
   });
 
   return sequences;
