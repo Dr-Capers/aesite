@@ -606,7 +606,7 @@ export class CharacterController {
     }
 
     const meta = this.getMetaForState(state);
-    const fps = meta?.fps ?? sequence.fps ?? 6;
+    const fps = meta?.fps ?? sequence.fps ?? DEFAULT_ANIMATION_FPS;
     const duration = (loops * sequence.frames.length * 1000) / Math.max(fps, 1);
     this.playTransientState(state, duration + 120, { fallback });
   }
