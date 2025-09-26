@@ -65,11 +65,9 @@ const FOLDER_STATE_MAP = {
   selfie: { state: 'selfie', fps: DEFAULT_ANIMATION_FPS },
 };
 
-const STATE_VARIANTS = {
-  looking: ['gum'],
-};
+const STATE_VARIANTS = {};
 
-const IDLE_VARIANT_ROOT_STATES = ['looking'];
+const IDLE_VARIANT_STATES = ['looking', 'gum', 'selfie', 'spin'];
 
 const GLOBAL_PRELOAD_CACHE = new Map();
 const GLOBAL_PRELOAD_IDLE_HANDLES = new Set();
@@ -208,6 +206,7 @@ export class CharacterController {
     this.idleVariantTimer = null;
     this.deferIdleVariantUntilIdle = false;
     this.idleVariantCooldownUntil = 0;
+    this.lastIdleVariantState = null;
     this.autoCycleIndex = 0;
     this.transientTimeouts = new Set();
     this.lastVisibilityGreeting = 0;
@@ -298,6 +297,7 @@ export class CharacterController {
     this.clearIdleVariant();
     this.deferIdleVariantUntilIdle = false;
     this.idleVariantCooldownUntil = 0;
+    this.lastIdleVariantState = null;
     this.clearTransientTimeouts();
     this.cancelBackgroundPreload();
     if (this.fpsRecoveryTimeout) {
@@ -627,19 +627,12 @@ export class CharacterController {
       return;
     }
 
-    const candidateStates = new Set();
-    IDLE_VARIANT_ROOT_STATES.forEach((state) => {
-      candidateStates.add(state);
-      const variants = STATE_VARIANTS[state] ?? [];
-      variants.forEach((variant) => candidateStates.add(variant));
-    });
-
-    const hasVariantFrames = Array.from(candidateStates).some((state) => {
+    const availableStates = IDLE_VARIANT_STATES.filter((state) => {
       const frames = this.sequences[state]?.frames;
       return Array.isArray(frames) && frames.length > 0;
     });
 
-    if (!hasVariantFrames) {
+    if (!availableStates.length) {
       return;
     }
 
@@ -666,7 +659,16 @@ export class CharacterController {
         (typeof performance !== 'undefined' && performance?.now ? performance.now() : Date.now()) +
           IDLE_VARIANT_HEAVY_COOLDOWN_MS
       );
-      this.playLoopingState('looking', { loops: 1, fallback: 'idle' });
+      let pool = availableStates;
+      if (pool.length > 1 && this.lastIdleVariantState) {
+        const filtered = pool.filter((state) => state !== this.lastIdleVariantState);
+        if (filtered.length) {
+          pool = filtered;
+        }
+      }
+      const selectedState = pool[Math.floor(Math.random() * pool.length)];
+      this.lastIdleVariantState = selectedState;
+      this.playLoopingState(selectedState, { loops: 1, fallback: 'idle' });
     }, delay);
   }
 

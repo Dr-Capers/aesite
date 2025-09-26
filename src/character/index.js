@@ -114,8 +114,6 @@ export function initCharacter() {
   const RAPID_SPEED_THRESHOLD = 450; // px per second
   const RAPID_REQUIRED_MS = 450;
   const SNEEZE_COOLDOWN_MS = 5000;
-  const SELFIE_COOLDOWN_MS = 10000;
-  const SPIN_COOLDOWN_MS = 1500;
 
   let pointerInside = false;
   let hoverLingerTimer = null;
@@ -124,37 +122,7 @@ export function initCharacter() {
   let rapidMotionAccum = 0;
   let lookingCooldownUntil = 0;
   let sneezeCooldownUntil = 0;
-  let selfieCooldownUntil = 0;
-  let spinCooldownUntil = 0;
   let lookingRearmTimer = null;
-
-  const requestSpin = () => {
-    const now = performance.now();
-    if (now < spinCooldownUntil) {
-      return;
-    }
-    spinCooldownUntil = now + SPIN_COOLDOWN_MS;
-    controller.trigger('spin', { immediate: true });
-  };
-
-  const requestSelfie = () => {
-    const now = performance.now();
-    if (now < selfieCooldownUntil) {
-      return;
-    }
-    selfieCooldownUntil = now + SELFIE_COOLDOWN_MS;
-    controller.trigger('selfie', { immediate: true });
-  };
-
-  const emailInput = document.querySelector('.footer-signup input[type="email"]');
-  register(emailInput, 'pointerdown', requestSpin);
-  register(emailInput, 'focus', requestSpin);
-
-  const socialLinks = Array.from(document.querySelectorAll('.footer__social a'));
-  socialLinks.forEach((link) => {
-    register(link, 'pointerenter', requestSelfie);
-    register(link, 'focus', requestSelfie);
-  });
 
   const isPointerEvent = (event) => Boolean(event?.type?.startsWith('pointer'));
   const clearHoverLinger = () => {
