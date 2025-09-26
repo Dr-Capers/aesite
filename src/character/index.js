@@ -110,7 +110,7 @@ export function initCharacter() {
 
   const POINTER_STILL_THRESHOLD = 12;
   const LOOKING_DELAY_MS = 3000;
-  const LOOKING_COOLDOWN_MS = 9000;
+  const LOOKING_COOLDOWN_MS = 4000;
   const RAPID_SPEED_THRESHOLD = 450; // px per second
   const RAPID_REQUIRED_MS = 450;
   const SNEEZE_COOLDOWN_MS = 5000;
@@ -212,7 +212,7 @@ export function initCharacter() {
       }
 
       if (typeof controller.playLoopingState === 'function') {
-        controller.playLoopingState('looking', { loops: 3, fallback: 'idle' });
+        controller.playLoopingState('looking', { loops: 1, fallback: 'idle' });
       } else {
         controller.trigger('looking', { immediate: true });
       }

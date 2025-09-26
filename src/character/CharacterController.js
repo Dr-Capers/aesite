@@ -4,12 +4,17 @@ const BUFFER_AHEAD_MIN = 3;
 const PRIORITY_FRAME_PRIMER_COUNT = 6;
 const FRAME_DROP_WINDOW_MS = 4000;
 const IDLE_SCHEDULER_TIMEOUT = 2000;
+const IDLE_VARIANT_MIN_DELAY_MS = 2800;
+const IDLE_VARIANT_MAX_DELAY_MS = 3800;
+const IDLE_VARIANT_HEAVY_COOLDOWN_MS = 1200;
 
 const DEFAULT_STATE_META = {
   idle: { priority: 0, fps: DEFAULT_ANIMATION_FPS, loop: true, fallback: 'idle' },
   hover: { priority: 1, fps: DEFAULT_ANIMATION_FPS, loop: true, fallback: 'hover' },
-  looking: { priority: 2, fps: DEFAULT_ANIMATION_FPS, loop: true, fallback: 'idle' },
-  idleLong: { priority: 3, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'idle' },
+  looking: { priority: 2, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'idle' },
+  gum: { priority: 2, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'idle' },
+  sitDown: { priority: 3, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'idleLong' },
+  idleLong: { priority: 3, fps: DEFAULT_ANIMATION_FPS, loop: true, fallback: 'idle' },
   wave: { priority: 4, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'hover' },
   sneeze: { priority: 5, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'idle' },
   spin: { priority: 6, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'idle' },
@@ -44,19 +49,27 @@ const ANIMATION_MODULES = {
 };
 
 const FOLDER_STATE_MAP = {
-  Fixing: { state: 'idle', fps: DEFAULT_ANIMATION_FPS },
+  Fixing: { state: 'idleLong', fps: DEFAULT_ANIMATION_FPS },
   Iddle: { state: 'hover', fps: DEFAULT_ANIMATION_FPS },
   StandUP: { state: 'wave', fps: DEFAULT_ANIMATION_FPS },
-  SitDown: { state: 'idleLong', fps: DEFAULT_ANIMATION_FPS },
+  SitDown: { state: 'sitDown', fps: DEFAULT_ANIMATION_FPS },
   Looking: { state: 'looking', fps: DEFAULT_ANIMATION_FPS },
   Sneeze: { state: 'sneeze', fps: DEFAULT_ANIMATION_FPS },
   looking: { state: 'looking', fps: DEFAULT_ANIMATION_FPS },
   sneeze: { state: 'sneeze', fps: DEFAULT_ANIMATION_FPS },
+  GUM: { state: 'gum', fps: DEFAULT_ANIMATION_FPS },
+  gum: { state: 'gum', fps: DEFAULT_ANIMATION_FPS },
   Spin: { state: 'spin', fps: DEFAULT_ANIMATION_FPS },
   spin: { state: 'spin', fps: DEFAULT_ANIMATION_FPS },
   Selfie: { state: 'selfie', fps: DEFAULT_ANIMATION_FPS },
   selfie: { state: 'selfie', fps: DEFAULT_ANIMATION_FPS },
 };
+
+const STATE_VARIANTS = {
+  looking: ['gum'],
+};
+
+const IDLE_VARIANT_ROOT_STATES = ['looking'];
 
 const GLOBAL_PRELOAD_CACHE = new Map();
 const GLOBAL_PRELOAD_IDLE_HANDLES = new Set();
@@ -192,6 +205,9 @@ export class CharacterController {
     this.isDestroyed = false;
     this.isVisible = false;
     this.autoCycleTimer = null;
+    this.idleVariantTimer = null;
+    this.deferIdleVariantUntilIdle = false;
+    this.idleVariantCooldownUntil = 0;
     this.autoCycleIndex = 0;
     this.transientTimeouts = new Set();
     this.lastVisibilityGreeting = 0;
@@ -221,8 +237,12 @@ export class CharacterController {
       if (this.shouldReduceMotion) {
         this.stop();
         this.renderFrame();
+        this.clearIdleVariant();
       } else {
         this.start();
+        if (this.currentState === 'idle') {
+          this.scheduleIdleVariant();
+        }
       }
     };
     this.reducedMotionQuery.addEventListener('change', this.onReducedMotionChange);
@@ -275,6 +295,9 @@ export class CharacterController {
     this.stop();
     this.isDestroyed = true;
     this.clearAutoCycle();
+    this.clearIdleVariant();
+    this.deferIdleVariantUntilIdle = false;
+    this.idleVariantCooldownUntil = 0;
     this.clearTransientTimeouts();
     this.cancelBackgroundPreload();
     if (this.fpsRecoveryTimeout) {
@@ -400,7 +423,22 @@ export class CharacterController {
       return;
     }
     if (this.currentState === nextState && this.frameIndex === 0) {
+      if (nextState === 'idle') {
+        this.deferIdleVariantUntilIdle = false;
+        this.scheduleIdleVariant();
+      } else {
+        this.clearIdleVariant();
+      }
       return;
+    }
+    const now = typeof performance !== 'undefined' && performance?.now ? performance.now() : Date.now();
+    if (nextState === 'idle') {
+      this.deferIdleVariantUntilIdle = false;
+    } else if (nextState === 'sitDown' || nextState === 'idleLong' || nextState === 'wave') {
+      this.deferIdleVariantUntilIdle = true;
+      this.idleVariantCooldownUntil = Math.max(this.idleVariantCooldownUntil, now + IDLE_VARIANT_HEAVY_COOLDOWN_MS);
+    } else {
+      this.deferIdleVariantUntilIdle = false;
     }
     this.currentState = nextState;
     this.frameIndex = 0;
@@ -409,14 +447,23 @@ export class CharacterController {
     }
     this.renderFrame();
     this.scheduleBufferFill(nextState);
+    if (nextState === 'idle') {
+      this.scheduleIdleVariant();
+    } else {
+      this.clearIdleVariant();
+    }
   }
 
   trigger(state, { immediate = false } = {}) {
     this.registerInteraction();
-    if (immediate && this.canInterrupt(state)) {
-      this.setState(state);
-    } else if (!this.pendingState || this.getPriority(state) > this.getPriority(this.pendingState)) {
-      this.pendingState = state;
+    const selectedState = this.resolveVariant(state);
+    if (immediate && this.canInterrupt(selectedState)) {
+      this.setState(selectedState);
+    } else if (
+      !this.pendingState ||
+      this.getPriority(selectedState) > this.getPriority(this.pendingState)
+    ) {
+      this.pendingState = selectedState;
     }
   }
 
@@ -441,7 +488,14 @@ export class CharacterController {
       return;
     }
 
-    if (this.sequences.idleLong) {
+    const sitDownSequence = this.getSequence('sitDown');
+    if (sitDownSequence?.frames?.length) {
+      this.playLoopingState('sitDown', { loops: 1, fallback: 'idleLong' });
+      return;
+    }
+
+    const idleLongSequence = this.getSequence('idleLong');
+    if (idleLongSequence?.frames?.length) {
       this.trigger('idleLong', { immediate: true });
     } else {
       this.trigger('idle', { immediate: true });
@@ -518,7 +572,12 @@ export class CharacterController {
     this.isVisible = isVisible;
     if (!isVisible) {
       this.clearAutoCycle();
+      this.clearIdleVariant();
       return;
+    }
+
+    if (this.currentState === 'idle') {
+      this.scheduleIdleVariant();
     }
 
     if (this.touchMode) {
@@ -548,6 +607,77 @@ export class CharacterController {
     if (this.autoCycleTimer !== null) {
       window.clearTimeout(this.autoCycleTimer);
       this.autoCycleTimer = null;
+    }
+  }
+
+  scheduleIdleVariant() {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    this.clearIdleVariant();
+
+    if (
+      this.isDestroyed ||
+      this.currentState !== 'idle' ||
+      !this.isVisible ||
+      this.shouldReduceMotion ||
+      this.deferIdleVariantUntilIdle
+    ) {
+      return;
+    }
+
+    const candidateStates = new Set();
+    IDLE_VARIANT_ROOT_STATES.forEach((state) => {
+      candidateStates.add(state);
+      const variants = STATE_VARIANTS[state] ?? [];
+      variants.forEach((variant) => candidateStates.add(variant));
+    });
+
+    const hasVariantFrames = Array.from(candidateStates).some((state) => {
+      const frames = this.sequences[state]?.frames;
+      return Array.isArray(frames) && frames.length > 0;
+    });
+
+    if (!hasVariantFrames) {
+      return;
+    }
+
+    const now = typeof performance !== 'undefined' && performance?.now ? performance.now() : Date.now();
+    const delayRange = Math.max(0, IDLE_VARIANT_MAX_DELAY_MS - IDLE_VARIANT_MIN_DELAY_MS);
+    let delay = IDLE_VARIANT_MIN_DELAY_MS + Math.random() * delayRange;
+    if (this.idleVariantCooldownUntil > now) {
+      delay += this.idleVariantCooldownUntil - now;
+    }
+
+    this.idleVariantTimer = window.setTimeout(() => {
+      this.idleVariantTimer = null;
+      if (
+        this.isDestroyed ||
+        this.currentState !== 'idle' ||
+        !this.isVisible ||
+        this.shouldReduceMotion ||
+        this.deferIdleVariantUntilIdle
+      ) {
+        return;
+      }
+      this.idleVariantCooldownUntil = Math.max(
+        this.idleVariantCooldownUntil,
+        (typeof performance !== 'undefined' && performance?.now ? performance.now() : Date.now()) +
+          IDLE_VARIANT_HEAVY_COOLDOWN_MS
+      );
+      this.playLoopingState('looking', { loops: 1, fallback: 'idle' });
+    }, delay);
+  }
+
+  clearIdleVariant() {
+    if (typeof window === 'undefined') {
+      this.idleVariantTimer = null;
+      return;
+    }
+    if (this.idleVariantTimer !== null) {
+      window.clearTimeout(this.idleVariantTimer);
+      this.idleVariantTimer = null;
     }
   }
 
@@ -600,15 +730,37 @@ export class CharacterController {
   }
 
   playLoopingState(state, { loops = 1, fallback } = {}) {
-    const sequence = this.getSequence(state);
+    const selectedState = this.resolveVariant(state);
+    const sequence = this.getSequence(selectedState);
     if (!sequence || sequence.frames.length === 0) {
       return;
     }
 
-    const meta = this.getMetaForState(state);
+    const meta = this.getMetaForState(selectedState);
     const fps = meta?.fps ?? sequence.fps ?? DEFAULT_ANIMATION_FPS;
     const duration = (loops * sequence.frames.length * 1000) / Math.max(fps, 1);
-    this.playTransientState(state, duration + 120, { fallback });
+    const shouldForceTimeout = Boolean(meta?.loop);
+    const transientDuration = shouldForceTimeout ? duration + 120 : null;
+    this.playTransientState(selectedState, transientDuration, { fallback });
+  }
+
+  resolveVariant(state) {
+    const variants = STATE_VARIANTS[state];
+    if (!variants?.length) {
+      return state;
+    }
+
+    const availableVariants = variants.filter((candidate) => {
+      const frames = this.sequences[candidate]?.frames;
+      return Array.isArray(frames) && frames.length > 0;
+    });
+
+    if (!availableVariants.length) {
+      return state;
+    }
+
+    const choices = [state, ...availableVariants];
+    return choices[Math.floor(Math.random() * choices.length)];
   }
 
   playTransientState(state, duration = 2200, { fallback } = {}) {
@@ -619,15 +771,17 @@ export class CharacterController {
     this.registerInteraction();
     this.setState(state, { resetTimer: false });
 
-    const timeoutId = window.setTimeout(() => {
-      this.transientTimeouts.delete(timeoutId);
-      if (this.currentState === state) {
-        const nextFallback = fallback ?? this.getMetaForState(state)?.fallback ?? 'idle';
-        this.trigger(nextFallback, { immediate: true });
-      }
-    }, Math.max(1000, duration));
+    if (Number.isFinite(duration) && duration > 0) {
+      const timeoutId = window.setTimeout(() => {
+        this.transientTimeouts.delete(timeoutId);
+        if (this.currentState === state) {
+          const nextFallback = fallback ?? this.getMetaForState(state)?.fallback ?? 'idle';
+          this.trigger(nextFallback, { immediate: true });
+        }
+      }, Math.max(1000, duration));
 
-    this.transientTimeouts.add(timeoutId);
+      this.transientTimeouts.add(timeoutId);
+    }
   }
 
   clearTransientTimeouts() {
@@ -899,6 +1053,8 @@ export function loadCharacterSequences(folderOverrides = {}) {
     idle: { entries: [], priority: 0 },
     hover: { entries: [], priority: 0 },
     looking: { entries: [], priority: 0 },
+    sitDown: { entries: [], priority: 0 },
+    gum: { entries: [], priority: 0 },
     wave: { entries: [], priority: 0 },
     idleLong: { entries: [], priority: 0 },
     sneeze: { entries: [], priority: 0 },
@@ -910,6 +1066,8 @@ export function loadCharacterSequences(folderOverrides = {}) {
     idle: { frames: [], fps: DEFAULT_STATE_META.idle.fps },
     hover: { frames: [], fps: DEFAULT_STATE_META.hover.fps },
     looking: { frames: [], fps: DEFAULT_STATE_META.looking.fps },
+    sitDown: { frames: [], fps: DEFAULT_STATE_META.sitDown.fps },
+    gum: { frames: [], fps: DEFAULT_STATE_META.gum.fps },
     wave: { frames: [], fps: DEFAULT_STATE_META.wave.fps },
     idleLong: { frames: [], fps: DEFAULT_STATE_META.idleLong.fps },
     sneeze: { frames: [], fps: DEFAULT_STATE_META.sneeze.fps },
@@ -957,6 +1115,11 @@ export function loadCharacterSequences(folderOverrides = {}) {
     bucket.entries.sort((a, b) => a.path.localeCompare(b.path));
     sequences[stateKey].frames = bucket.entries.map((entry) => entry.frameUrl);
   });
+
+  if (!sequences.idle.frames.length && sequences.hover.frames.length) {
+    sequences.idle.frames = sequences.hover.frames.slice();
+    sequences.idle.fps = sequences.hover.fps;
+  }
 
   return sequences;
 }
