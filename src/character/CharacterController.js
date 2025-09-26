@@ -610,6 +610,60 @@ export class CharacterController {
     }
   }
 
+  getIdleVariantPool() {
+    return IDLE_VARIANT_STATES.filter((state) => {
+      const frames = this.sequences[state]?.frames;
+      return Array.isArray(frames) && frames.length > 0;
+    });
+  }
+
+  pickIdleVariant(pool) {
+    if (!Array.isArray(pool) || pool.length === 0) {
+      return null;
+    }
+    let options = pool;
+    if (options.length > 1 && this.lastIdleVariantState && options.includes(this.lastIdleVariantState)) {
+      const filtered = options.filter((state) => state !== this.lastIdleVariantState);
+      if (filtered.length) {
+        options = filtered;
+      }
+    }
+    const index = Math.floor(Math.random() * options.length);
+    return options[index] ?? null;
+  }
+
+  executeIdleVariant() {
+    const pool = this.getIdleVariantPool();
+    if (!pool.length) {
+      return false;
+    }
+
+    const nextState = this.pickIdleVariant(pool);
+    if (!nextState) {
+      return false;
+    }
+
+    const now = typeof performance !== 'undefined' && performance?.now ? performance.now() : Date.now();
+    this.idleVariantCooldownUntil = Math.max(this.idleVariantCooldownUntil, now + IDLE_VARIANT_HEAVY_COOLDOWN_MS);
+    this.lastIdleVariantState = nextState;
+    this.playLoopingState(nextState, { loops: 1, fallback: 'idle' });
+    return true;
+  }
+
+  playIdleVariant() {
+    if (
+      this.isDestroyed ||
+      !this.isVisible ||
+      this.shouldReduceMotion ||
+      this.deferIdleVariantUntilIdle
+    ) {
+      return false;
+    }
+
+    this.clearIdleVariant();
+    return this.executeIdleVariant();
+  }
+
   scheduleIdleVariant() {
     if (typeof window === 'undefined') {
       return;
@@ -627,12 +681,7 @@ export class CharacterController {
       return;
     }
 
-    const availableStates = IDLE_VARIANT_STATES.filter((state) => {
-      const frames = this.sequences[state]?.frames;
-      return Array.isArray(frames) && frames.length > 0;
-    });
-
-    if (!availableStates.length) {
+    if (!this.getIdleVariantPool().length) {
       return;
     }
 
@@ -654,21 +703,7 @@ export class CharacterController {
       ) {
         return;
       }
-      this.idleVariantCooldownUntil = Math.max(
-        this.idleVariantCooldownUntil,
-        (typeof performance !== 'undefined' && performance?.now ? performance.now() : Date.now()) +
-          IDLE_VARIANT_HEAVY_COOLDOWN_MS
-      );
-      let pool = availableStates;
-      if (pool.length > 1 && this.lastIdleVariantState) {
-        const filtered = pool.filter((state) => state !== this.lastIdleVariantState);
-        if (filtered.length) {
-          pool = filtered;
-        }
-      }
-      const selectedState = pool[Math.floor(Math.random() * pool.length)];
-      this.lastIdleVariantState = selectedState;
-      this.playLoopingState(selectedState, { loops: 1, fallback: 'idle' });
+      this.executeIdleVariant();
     }, delay);
   }
 

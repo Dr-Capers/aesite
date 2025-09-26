@@ -175,14 +175,22 @@ export function initCharacter() {
         return;
       }
 
-      if (!controller.sequences?.looking?.frames?.length) {
-        return;
+      let playedVariant = false;
+      if (typeof controller.playIdleVariant === 'function') {
+        playedVariant = controller.playIdleVariant();
       }
 
-      if (typeof controller.playLoopingState === 'function') {
-        controller.playLoopingState('looking', { loops: 1, fallback: 'idle' });
-      } else {
-        controller.trigger('looking', { immediate: true });
+      if (!playedVariant && controller.sequences?.looking?.frames?.length) {
+        if (typeof controller.playLoopingState === 'function') {
+          controller.playLoopingState('looking', { loops: 1, fallback: 'idle' });
+        } else {
+          controller.trigger('looking', { immediate: true });
+        }
+        playedVariant = true;
+      }
+
+      if (!playedVariant) {
+        return;
       }
 
       lookingCooldownUntil = performance.now() + LOOKING_COOLDOWN_MS;
