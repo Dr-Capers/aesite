@@ -47,6 +47,7 @@ body {
   animation: pulse 18s ease-in-out infinite alternate;
 }
 
+
 .background__caustics {
   position: absolute;
   inset: -25vh;
@@ -172,6 +173,11 @@ body {
   opacity: 0.75;
   pointer-events: none;
   z-index: -2;
+}
+
+body[data-no-character-glow="true"] .character-display::before {
+  opacity: 0;
+  display: none;
 }
 
 .character-display::after {
@@ -695,6 +701,11 @@ body {
   transition: opacity 200ms ease, transform 200ms ease;
   z-index: 999;
   box-shadow: 0 20px 40px -30px rgba(0, 0, 0, 0.9);
+}
+
+.toast--error {
+  border-color: rgba(255, 61, 129, 0.5);
+  background: rgba(44, 10, 24, 0.92);
 }
 
 .toast--visible {

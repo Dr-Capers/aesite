@@ -18,5 +18,9 @@
   "type": "module",
   "devDependencies": {
     "vite": "^7.1.5"
+  },
+  "dependencies": {
+    "firebase": "^10.14.1",
+    "googleapis": "^161.0.0"
   }
 }
