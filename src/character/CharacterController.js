@@ -1,12 +1,15 @@
 const DEFAULT_ANIMATION_FPS = 60;
-const HERO_STATES = new Set(['idle', 'hover', 'spin', 'selfie']);
+const HERO_STATES = new Set(['idle', 'hover', 'sitDown', 'idleLong', 'sleep', 'wave', 'standUp', 'spin', 'selfie']);
+
+const STANDING_STATES = new Set(['hover', 'wave', 'standUp', 'spin', 'selfie', 'looking']);
 const BUFFER_AHEAD_MIN = 3;
 const PRIORITY_FRAME_PRIMER_COUNT = 6;
 const FRAME_DROP_WINDOW_MS = 4000;
 const IDLE_SCHEDULER_TIMEOUT = 2000;
-const IDLE_VARIANT_MIN_DELAY_MS = 2800;
-const IDLE_VARIANT_MAX_DELAY_MS = 3800;
-const IDLE_VARIANT_HEAVY_COOLDOWN_MS = 1200;
+const IDLE_VARIANT_MIN_DELAY_MS = 9000;
+const IDLE_VARIANT_MAX_DELAY_MS = 15000;
+const IDLE_VARIANT_HEAVY_COOLDOWN_MS = 6000;
+const FIXING_TO_SLEEP_TIMEOUT_MS = 15000;
 
 const DEFAULT_STATE_META = {
   idle: { priority: 0, fps: DEFAULT_ANIMATION_FPS, loop: true, fallback: 'idle' },
@@ -14,8 +17,10 @@ const DEFAULT_STATE_META = {
   looking: { priority: 2, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'idle' },
   gum: { priority: 2, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'idle' },
   sitDown: { priority: 3, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'idleLong' },
+  standUp: { priority: 4, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'hover' },
   idleLong: { priority: 3, fps: DEFAULT_ANIMATION_FPS, loop: true, fallback: 'idle' },
-  wave: { priority: 4, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'hover' },
+  sleep: { priority: 4, fps: DEFAULT_ANIMATION_FPS, loop: true, fallback: 'idleLong' },
+  wave: { priority: 5, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'hover' },
   sneeze: { priority: 5, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'idle' },
   spin: { priority: 6, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'idle' },
   selfie: { priority: 7, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'idle' },
@@ -23,7 +28,7 @@ const DEFAULT_STATE_META = {
 
 const DEFAULT_OPTIONS = {
   idleTimeoutMs: 7000,
-  proximityThreshold: 160,
+  proximityThreshold: 90,
   alt: 'Arcade Earth mascot placeholder',
   touchMode: false,
   autoCycleStates: ['idleLong'],
@@ -51,7 +56,7 @@ const ANIMATION_MODULES = {
 const FOLDER_STATE_MAP = {
   Fixing: { state: 'idleLong', fps: DEFAULT_ANIMATION_FPS },
   Iddle: { state: 'hover', fps: DEFAULT_ANIMATION_FPS },
-  StandUP: { state: 'wave', fps: DEFAULT_ANIMATION_FPS },
+  StandUP: { state: 'standUp', fps: DEFAULT_ANIMATION_FPS },
   SitDown: { state: 'sitDown', fps: DEFAULT_ANIMATION_FPS },
   Looking: { state: 'looking', fps: DEFAULT_ANIMATION_FPS },
   Sneeze: { state: 'sneeze', fps: DEFAULT_ANIMATION_FPS },
@@ -63,6 +68,10 @@ const FOLDER_STATE_MAP = {
   spin: { state: 'spin', fps: DEFAULT_ANIMATION_FPS },
   Selfie: { state: 'selfie', fps: DEFAULT_ANIMATION_FPS },
   selfie: { state: 'selfie', fps: DEFAULT_ANIMATION_FPS },
+  Wave: { state: 'wave', fps: DEFAULT_ANIMATION_FPS },
+  wave: { state: 'wave', fps: DEFAULT_ANIMATION_FPS },
+  Sleep: { state: 'sleep', fps: DEFAULT_ANIMATION_FPS },
+  sleep: { state: 'sleep', fps: DEFAULT_ANIMATION_FPS },
 };
 
 const STATE_VARIANTS = {};
@@ -192,7 +201,7 @@ export class CharacterController {
     this.autoCycleOnVisibleDelayMs = autoCycleOnVisibleDelayMs;
     this.visibilityGreetingCooldownMs = visibilityGreetingCooldownMs;
 
-    this.currentState = 'idle';
+    this.currentState = this.sequences.sitDown ? 'sitDown' : 'idle';
     this.frameIndex = 0;
     this.pendingState = null;
     this.lastFrameTime = 0;
@@ -247,6 +256,10 @@ export class CharacterController {
     this.reducedMotionQuery.addEventListener('change', this.onReducedMotionChange);
 
     this.autoCycleStates = this.autoCycleStates.filter((state) => Boolean(this.sequences[state]));
+
+    this.waveFallbackOverride = null;
+    this.standUpFallbackOverride = null;
+    this.sleepTimer = null;
 
     this.readyPromise = this.preloadSequences(this.sequences)
       .catch((error) => {
@@ -304,6 +317,7 @@ export class CharacterController {
       window.clearTimeout(this.fpsRecoveryTimeout);
       this.fpsRecoveryTimeout = null;
     }
+    this.cancelSleepTimer();
     this.reducedMotionQuery.removeEventListener('change', this.onReducedMotionChange);
     this.preloadedFrames.clear();
     this.frameDropHistory = [];
@@ -399,6 +413,22 @@ export class CharacterController {
   }
 
   handleSequenceComplete() {
+    if (this.currentState === 'wave' && this.waveFallbackOverride) {
+      const next = this.waveFallbackOverride;
+      this.waveFallbackOverride = null;
+      if (this.sequences[next]) {
+        this.setState(next, { resetTimer: false });
+        return;
+      }
+    }
+    if (this.currentState === 'standUp' && this.standUpFallbackOverride) {
+      const next = this.standUpFallbackOverride;
+      this.standUpFallbackOverride = null;
+      if (this.sequences[next]) {
+        this.setState(next, { resetTimer: false });
+        return;
+      }
+    }
     const meta = this.getMetaForState(this.currentState);
     const fallback = meta?.fallback ?? 'idle';
     this.setState(fallback, { resetTimer: false });
@@ -434,11 +464,23 @@ export class CharacterController {
     const now = typeof performance !== 'undefined' && performance?.now ? performance.now() : Date.now();
     if (nextState === 'idle') {
       this.deferIdleVariantUntilIdle = false;
-    } else if (nextState === 'sitDown' || nextState === 'idleLong' || nextState === 'wave') {
+    } else if (
+      nextState === 'sitDown' ||
+      nextState === 'idleLong' ||
+      nextState === 'wave' ||
+      nextState === 'sleep'
+    ) {
       this.deferIdleVariantUntilIdle = true;
       this.idleVariantCooldownUntil = Math.max(this.idleVariantCooldownUntil, now + IDLE_VARIANT_HEAVY_COOLDOWN_MS);
     } else {
       this.deferIdleVariantUntilIdle = false;
+    }
+    this.cancelSleepTimer();
+    if (this.currentState === 'wave' && nextState !== 'wave') {
+      this.waveFallbackOverride = null;
+    }
+    if (this.currentState === 'standUp' && nextState !== 'standUp') {
+      this.standUpFallbackOverride = null;
     }
     this.currentState = nextState;
     this.frameIndex = 0;
@@ -447,10 +489,47 @@ export class CharacterController {
     }
     this.renderFrame();
     this.scheduleBufferFill(nextState);
+    this.scheduleFixingSleepTimerIfNeeded();
     if (nextState === 'idle') {
       this.scheduleIdleVariant();
     } else {
       this.clearIdleVariant();
+    }
+  }
+
+  scheduleFixingSleepTimerIfNeeded() {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    this.cancelSleepTimer();
+    if (
+      this.isDestroyed ||
+      this.currentState !== 'idleLong' ||
+      !this.getSequence('sleep')?.frames?.length
+    ) {
+      return;
+    }
+    this.sleepTimer = window.setTimeout(() => {
+      this.sleepTimer = null;
+      if (this.isDestroyed || this.currentState !== 'idleLong') {
+        return;
+      }
+      if (!this.canInterrupt('sleep')) {
+        this.scheduleFixingSleepTimerIfNeeded();
+        return;
+      }
+      this.trigger('sleep', { immediate: true });
+    }, FIXING_TO_SLEEP_TIMEOUT_MS);
+  }
+
+  cancelSleepTimer() {
+    if (typeof window === 'undefined') {
+      this.sleepTimer = null;
+      return;
+    }
+    if (this.sleepTimer !== null) {
+      window.clearTimeout(this.sleepTimer);
+      this.sleepTimer = null;
     }
   }
 
@@ -476,6 +555,29 @@ export class CharacterController {
       if (wasHovering) {
         return;
       }
+
+      if (!this.isStandingState(this.currentState)) {
+        const standUpSequence = this.getSequence('standUp');
+        if (standUpSequence?.frames?.length && this.canInterrupt('standUp')) {
+          const hoverAvailable = this.getSequence('hover')?.frames?.length;
+          const idleLongAvailable = this.getSequence('idleLong')?.frames?.length;
+          const fallbackState = hoverAvailable ? 'hover' : idleLongAvailable ? 'idleLong' : 'idle';
+          const duration = this.getLinearSequenceDuration('standUp');
+          this.playTransientState('standUp', duration, {
+            fallback: fallbackState,
+          });
+          return;
+        }
+      }
+
+      if (this.isStandingState(this.currentState)) {
+        const sneezeSequence = this.getSequence('sneeze');
+        if (sneezeSequence?.frames?.length) {
+          this.playLoopingState('sneeze', { loops: 1, fallback: 'idle' });
+          return;
+        }
+      }
+
       if (this.sequences.wave) {
         this.trigger('wave', { immediate: true });
       } else {
@@ -490,7 +592,10 @@ export class CharacterController {
 
     const sitDownSequence = this.getSequence('sitDown');
     if (sitDownSequence?.frames?.length) {
-      this.playLoopingState('sitDown', { loops: 1, fallback: 'idleLong' });
+      this.pendingState = null;
+      this.waveFallbackOverride = null;
+      this.standUpFallbackOverride = null;
+      this.setState('sitDown', { resetTimer: false });
       return;
     }
 
@@ -800,6 +905,57 @@ export class CharacterController {
     return choices[Math.floor(Math.random() * choices.length)];
   }
 
+  isStandingState(state) {
+    return STANDING_STATES.has(state);
+  }
+
+  playWaveSequence({ ensureStanding = false, fallback = 'idle', sitAfter = false } = {}) {
+    const waveSequence = this.getSequence('wave');
+    if (!waveSequence?.frames?.length) {
+      return false;
+    }
+
+    const finalFallback =
+      sitAfter && this.getSequence('sitDown')?.frames?.length ? 'sitDown' : fallback;
+
+    this.waveFallbackOverride = finalFallback && this.sequences[finalFallback] ? finalFallback : null;
+
+    if (
+      ensureStanding &&
+      !this.isStandingState(this.currentState) &&
+      this.getSequence('standUp')?.frames?.length &&
+      this.canInterrupt('standUp')
+    ) {
+      this.standUpFallbackOverride = this.sequences.wave ? 'wave' : null;
+      const duration = this.getLinearSequenceDuration('standUp');
+      this.playTransientState('standUp', duration, { fallback: this.standUpFallbackOverride || 'hover' });
+      return true;
+    }
+
+    if (
+      ensureStanding &&
+      !this.isStandingState(this.currentState) &&
+      this.getSequence('hover')?.frames?.length &&
+      this.canInterrupt('hover')
+    ) {
+      this.playLoopingState('hover', { loops: 1, fallback: 'wave' });
+      return true;
+    }
+
+    this.trigger('wave', { immediate: true });
+    return true;
+  }
+
+  getLinearSequenceDuration(state) {
+    const sequence = this.getSequence(state);
+    if (!sequence?.frames?.length) {
+      return 0;
+    }
+    const meta = this.getMetaForState(state);
+    const fps = meta?.fps ?? sequence.fps ?? DEFAULT_ANIMATION_FPS;
+    return (sequence.frames.length * 1000) / Math.max(fps, 1);
+  }
+
   playTransientState(state, duration = 2200, { fallback } = {}) {
     if (!this.sequences[state] || !this.canInterrupt(state)) {
       return;
@@ -1091,6 +1247,8 @@ export function loadCharacterSequences(folderOverrides = {}) {
     hover: { entries: [], priority: 0 },
     looking: { entries: [], priority: 0 },
     sitDown: { entries: [], priority: 0 },
+    standUp: { entries: [], priority: 0 },
+    sleep: { entries: [], priority: 0 },
     gum: { entries: [], priority: 0 },
     wave: { entries: [], priority: 0 },
     idleLong: { entries: [], priority: 0 },
@@ -1104,6 +1262,8 @@ export function loadCharacterSequences(folderOverrides = {}) {
     hover: { frames: [], fps: DEFAULT_STATE_META.hover.fps },
     looking: { frames: [], fps: DEFAULT_STATE_META.looking.fps },
     sitDown: { frames: [], fps: DEFAULT_STATE_META.sitDown.fps },
+    standUp: { frames: [], fps: DEFAULT_STATE_META.standUp.fps },
+    sleep: { frames: [], fps: DEFAULT_STATE_META.sleep.fps },
     gum: { frames: [], fps: DEFAULT_STATE_META.gum.fps },
     wave: { frames: [], fps: DEFAULT_STATE_META.wave.fps },
     idleLong: { frames: [], fps: DEFAULT_STATE_META.idleLong.fps },

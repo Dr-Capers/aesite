@@ -125,6 +125,53 @@ export function initCharacter() {
   let lookingRearmTimer = null;
 
   const isPointerEvent = (event) => Boolean(event?.type?.startsWith('pointer'));
+  const getSpriteElement = () => mount.querySelector('.character-display__sprite');
+  const SPRITE_MARGIN_X_RATIO = 0.18;
+  const SPRITE_MARGIN_TOP_RATIO = 0.08;
+  const SPRITE_MARGIN_BOTTOM_RATIO = 0.28;
+
+  const isPointerOnCharacter = (event) => {
+    if (!isPointerEvent(event)) {
+      return true;
+    }
+    const sprite = getSpriteElement();
+    if (!sprite) {
+      return false;
+    }
+    const rect = sprite.getBoundingClientRect();
+    const { clientX, clientY } = event;
+    if (typeof clientX !== 'number' || typeof clientY !== 'number') {
+      return true;
+    }
+    const insetX = rect.width * SPRITE_MARGIN_X_RATIO;
+    const insetTop = rect.height * SPRITE_MARGIN_TOP_RATIO;
+    const insetBottom = rect.height * SPRITE_MARGIN_BOTTOM_RATIO;
+    const innerLeft = rect.left + insetX;
+    const innerRight = rect.right - insetX;
+    const innerTop = rect.top + insetTop;
+    const innerBottom = rect.bottom - insetBottom;
+
+    if (innerLeft >= innerRight || innerTop >= innerBottom) {
+      return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
+    }
+
+    if (clientX < innerLeft || clientX > innerRight || clientY < innerTop || clientY > innerBottom) {
+      return false;
+    }
+
+    const centerX = (innerLeft + innerRight) / 2;
+    const centerY = (innerTop + innerBottom) / 2;
+    const radiusX = (innerRight - innerLeft) / 2;
+    const radiusY = (innerBottom - innerTop) / 2;
+
+    if (radiusX <= 0 || radiusY <= 0) {
+      return true;
+    }
+
+    const normX = (clientX - centerX) / radiusX;
+    const normY = (clientY - centerY) / radiusY;
+    return normX * normX + normY * normY <= 1;
+  };
   const clearHoverLinger = () => {
     if (hoverLingerTimer !== null) {
       window.clearTimeout(hoverLingerTimer);
@@ -270,6 +317,12 @@ export function initCharacter() {
   };
 
   const handleHoverEnter = (event) => {
+    if (pointerInside) {
+      return;
+    }
+    if (!isPointerOnCharacter(event)) {
+      return;
+    }
     controller.hover(true);
     if (!isPointerEvent(event) || event.pointerType === 'touch') {
       return;
@@ -284,14 +337,25 @@ export function initCharacter() {
   };
 
   const handleHoverLeave = (event) => {
-    controller.hover(false);
-    if (isPointerEvent(event)) {
+    if (pointerInside) {
+      controller.hover(false);
       pointerInside = false;
     }
+    controller.updateProximity(Number.POSITIVE_INFINITY);
     resetPointerTracking();
   };
 
   register(mount, 'pointermove', (event) => {
+    if (event.pointerType !== 'touch') {
+      const pointerOnCharacter = isPointerOnCharacter(event);
+      if (pointerOnCharacter && !pointerInside) {
+        handleHoverEnter(event);
+      } else if (!pointerOnCharacter && pointerInside) {
+        handleHoverLeave(event);
+        return;
+      }
+    }
+
     if (event.pointerType === 'touch' || !pointerInside) {
       return;
     }
@@ -343,7 +407,7 @@ export function initCharacter() {
   );
 
   let scheduledPointerFrame = null;
-  const pointerRegion = mount.closest('.shell') ?? document.body;
+  const pointerRegion = mount;
   const handlePointerMove = (event) => {
     if (scheduledPointerFrame) {
       return;
@@ -351,10 +415,8 @@ export function initCharacter() {
     scheduledPointerFrame = requestAnimationFrame(() => {
       scheduledPointerFrame = null;
       controller.notifyUserEvent();
-      const rect = mount.getBoundingClientRect();
-      const dx = event.clientX - (rect.left + rect.width / 2);
-      const dy = event.clientY - (rect.top + rect.height / 2);
-      controller.updateProximity(Math.hypot(dx, dy));
+      const pointerOnCharacter = isPointerOnCharacter(event);
+      controller.updateProximity(pointerOnCharacter ? 0 : Number.POSITIVE_INFINITY);
     });
   };
   register(pointerRegion, 'pointermove', handlePointerMove, { passive: true });
@@ -364,6 +426,31 @@ export function initCharacter() {
 
   const handleSignupCelebration = () => controller.trigger('celebrate', { immediate: true });
   register(document, 'signup:success', handleSignupCelebration);
+
+  const BACKGROUND_INTERACTORS_SELECTOR =
+    'button, a, input, textarea, select, label, [role="button"], [data-character], .footer-signup, .footer__social';
+  const handleBackgroundClick = (event) => {
+    if (event.defaultPrevented) {
+      return;
+    }
+    const target = event.target;
+    if (!target || !(target instanceof Element)) {
+      return;
+    }
+    if (target.closest(BACKGROUND_INTERACTORS_SELECTOR)) {
+      return;
+    }
+    const isPrimaryPointer = typeof event.button !== 'number' || event.button === 0;
+    if (!isPrimaryPointer) {
+      return;
+    }
+    controller.playWaveSequence({
+      ensureStanding: true,
+      fallback: 'idle',
+      sitAfter: true,
+    });
+  };
+  register(document, 'click', handleBackgroundClick);
 
   controller.cleanup = () => {
     cleanupCallbacks.forEach((fn) => fn());
