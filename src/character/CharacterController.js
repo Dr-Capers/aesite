@@ -249,6 +249,9 @@ export class CharacterController {
     } else {
       this.currentState = 'hover';
     }
+    if (this.mount?.dataset) {
+      this.mount.dataset.characterState = this.currentState;
+    }
     this.frameIndex = 0;
     this.pendingState = null;
     this.lastFrameTime = 0;
@@ -368,6 +371,9 @@ export class CharacterController {
     this.reducedMotionQuery.removeEventListener('change', this.onReducedMotionChange);
     this.preloadedFrames.clear();
     this.frameDropHistory = [];
+    if (this.mount?.dataset) {
+      delete this.mount.dataset.characterState;
+    }
     this.mount.replaceChildren();
   }
 
@@ -535,6 +541,9 @@ export class CharacterController {
       this.standUpFallbackOverride = null;
     }
     this.currentState = nextState;
+    if (this.mount?.dataset) {
+      this.mount.dataset.characterState = this.currentState;
+    }
     this.frameIndex = 0;
     if (sequence.frames.length) {
       const firstFrame = sequence.frames[0];

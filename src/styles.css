@@ -207,6 +207,10 @@ body[data-no-character-glow="true"] .character-display::before {
   will-change: transform;
 }
 
+[data-character][data-character-state="spin"] .character-display__sprite {
+  transform: scale(1.8) translateY(6%);
+}
+
 .character-display:focus-visible {
   outline: 2px solid var(--accent-strong);
   outline-offset: 4px;
