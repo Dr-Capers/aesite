@@ -53,66 +53,139 @@ function collectMetadata(normalizedEmail) {
 }
 
 export function initSignupForm() {
-  const form = document.querySelector('.footer-signup');
-  const emailInput = document.querySelector('#email');
-
-  if (!form || !emailInput) {
+  const forms = Array.from(document.querySelectorAll('[data-signup-form]'));
+  if (!forms.length) {
     return;
   }
+
+  const FEEDBACK_CLASSES = ['signup-feedback--success', 'signup-feedback--error'];
+
+  const setFeedback = (form, type = null, message = '') => {
+    const isModalForm = Boolean(form.closest('[data-quiz-modal]'));
+    const existing = form.__signupFeedback;
+
+    if (!isModalForm) {
+      if (existing instanceof HTMLElement) {
+        existing.remove();
+        delete form.__signupFeedback;
+      }
+      if (type) {
+        form.dataset.signupState = type;
+      } else {
+        delete form.dataset.signupState;
+      }
+      return;
+    }
+
+    if (!message) {
+      if (existing instanceof HTMLElement) {
+        existing.remove();
+      }
+      delete form.__signupFeedback;
+      delete form.dataset.signupState;
+      return;
+    }
+
+    let feedback = existing;
+    if (!(feedback instanceof HTMLElement)) {
+      feedback = document.createElement('p');
+      feedback.className = 'signup-feedback';
+      feedback.dataset.signupFeedback = '';
+      feedback.setAttribute('aria-live', 'polite');
+      form.__signupFeedback = feedback;
+    }
+
+    if (feedback.parentNode !== form.parentNode || feedback.previousElementSibling !== form) {
+      form.insertAdjacentElement('afterend', feedback);
+    }
+
+    FEEDBACK_CLASSES.forEach((className) => feedback.classList.remove(className));
+    feedback.hidden = false;
+    feedback.textContent = message;
+    if (type) {
+      feedback.classList.add(`signup-feedback--${type}`);
+      feedback.setAttribute('data-state', type);
+      form.dataset.signupState = type;
+    } else {
+      feedback.removeAttribute('data-state');
+      form.dataset.signupState = 'info';
+    }
+  };
 
   const db = getFirestoreInstance();
   const signupsCollection = db ? collection(db, 'launchSignups') : null;
 
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-
-    const rawValue = emailInput.value.trim();
-    if (!rawValue) {
-      emailInput.focus();
+  forms.forEach((form) => {
+    const emailInput = form.querySelector('[data-signup-input]') || form.querySelector('input[type="email"]');
+    if (!emailInput) {
       return;
     }
 
-    if (!EMAIL_REGEX.test(rawValue)) {
-      createToast('Please enter a valid email address.', { variant: 'error' });
-      emailInput.focus();
-      return;
-    }
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
 
-    const button = form.querySelector('button');
-    const originalText = button.textContent;
-    button.disabled = true;
-    button.textContent = 'Submitting…';
+      setFeedback(form);
 
-    if (!signupsCollection) {
-      window.setTimeout(() => {
-        button.disabled = false;
-        button.textContent = originalText;
-        form.dispatchEvent(new CustomEvent('signup:error', { bubbles: true }));
-        createToast('Signup storage is not configured yet.', { variant: 'error' });
-      }, 200);
-      return;
-    }
-
-    const normalizedEmail = rawValue.toLowerCase();
-    const docRef = signupsCollection ? doc(signupsCollection, normalizedEmail) : null;
-
-    try {
-      await setDoc(docRef, collectMetadata(normalizedEmail));
-
-      form.reset();
-      createToast('Thanks, we will ping you soon!');
-      form.dispatchEvent(new CustomEvent('signup:success', { bubbles: true }));
-    } catch (error) {
-      console.error('Launch list signup failed', error);
-      if (error?.code === 'permission-denied') {
-        createToast('Looks like you’re already on the launch list!', { variant: 'error' });
-      } else {
-        createToast('We hit turbulence while saving your email.', { variant: 'error' });
+      const rawValue = emailInput.value.trim();
+      if (!rawValue) {
+        emailInput.focus();
+        setFeedback(form, 'error', 'Please enter your email address.');
+        return;
       }
-      form.dispatchEvent(new CustomEvent('signup:error', { bubbles: true, detail: { error } }));
-    } finally {
-      button.disabled = false;
-      button.textContent = originalText;
-    }
+
+      if (!EMAIL_REGEX.test(rawValue)) {
+        createToast('Please enter a valid email address.', { variant: 'error' });
+        emailInput.focus();
+        setFeedback(form, 'error', 'Please enter a valid email address.');
+        return;
+      }
+
+      const button = form.querySelector('button');
+      const originalText = button?.textContent ?? '';
+      if (button) {
+        button.disabled = true;
+        button.textContent = 'Submitting…';
+      }
+
+      if (!signupsCollection) {
+        window.setTimeout(() => {
+          if (button) {
+            button.disabled = false;
+            button.textContent = originalText;
+          }
+          form.dispatchEvent(new CustomEvent('signup:error', { bubbles: true }));
+          createToast('Signup storage is not configured yet.', { variant: 'error' });
+          setFeedback(form, 'error', 'Signup storage is not configured yet.');
+        }, 200);
+        return;
+      }
+
+      const normalizedEmail = rawValue.toLowerCase();
+      const docRef = signupsCollection ? doc(signupsCollection, normalizedEmail) : null;
+
+      try {
+        await setDoc(docRef, collectMetadata(normalizedEmail));
+
+        form.reset();
+        createToast('Thanks, we will ping you soon!');
+        form.dispatchEvent(new CustomEvent('signup:success', { bubbles: true }));
+        setFeedback(form, 'success', 'Thanks, we will ping you soon!');
+      } catch (error) {
+        console.error('Launch list signup failed', error);
+        if (error?.code === 'permission-denied') {
+          createToast('Looks like you’re already on the launch list!', { variant: 'error' });
+          setFeedback(form, 'error', 'Looks like you’re already on the launch list!');
+        } else {
+          createToast('We hit turbulence while saving your email.', { variant: 'error' });
+          setFeedback(form, 'error', 'We hit turbulence while saving your email.');
+        }
+        form.dispatchEvent(new CustomEvent('signup:error', { bubbles: true, detail: { error } }));
+      } finally {
+        if (button) {
+          button.disabled = false;
+          button.textContent = originalText;
+        }
+      }
+    });
   });
 }

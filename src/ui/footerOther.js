@@ -29,6 +29,7 @@ export function initFooterOtherPopover() {
   let isOpen = false;
   let focusTrap = null;
   let resizeHandler = null;
+  let discoTimer = null;
 
   const updateArrowPosition = () => {
     const triggerRect = trigger.getBoundingClientRect();
@@ -134,6 +135,10 @@ export function initFooterOtherPopover() {
     }
   };
 
+  container.addEventListener('ae:footer-other-close', () => {
+    closePopover();
+  });
+
   trigger.addEventListener('click', togglePopover);
   trigger.addEventListener('keydown', (event) => {
     if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
@@ -141,6 +146,21 @@ export function initFooterOtherPopover() {
       openPopover();
     }
   });
+
+  const secondaryBadge = document.querySelector('.brand-secondary');
+  if (secondaryBadge) {
+    let badgeTimer = null;
+    secondaryBadge.addEventListener('click', (event) => {
+      event.preventDefault();
+      secondaryBadge.classList.add('brand-secondary--disco');
+      if (badgeTimer) {
+        window.clearTimeout(badgeTimer);
+      }
+      badgeTimer = window.setTimeout(() => {
+        secondaryBadge.classList.remove('brand-secondary--disco');
+      }, 2200);
+    });
+  }
 
   document.addEventListener('click', handleDocumentClick);
   document.addEventListener('keydown', handleEscape);

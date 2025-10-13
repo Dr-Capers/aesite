@@ -31,6 +31,9 @@
         <h1 class="brand__title">Arcade Earth</h1>
       </div>
     </header>
+    <a class="brand-secondary" href="#other">
+      <img src="/assets/Planetary-Games-logo-white_300dpi.png" alt="Planetary Games logo">
+    </a>
 
     <section class="character-panel" aria-label="Arcade Earth mission specialist">
       <h2 class="sr-only">Arcade Earth mascot</h2>
@@ -42,9 +45,9 @@
         <span class="footer__pulse" aria-hidden="true"></span>
         <p>Landing before the next solar flare &mdash; stay tuned.</p>
       </div>
-      <form class="footer-signup" aria-label="Join the launch list">
-        <label class="sr-only" for="email">Email address</label>
-        <input id="email" type="email" name="email" placeholder="Join the launch list" required>
+      <form class="footer-signup" aria-label="Join the launch list" data-signup-form>
+        <label class="sr-only" for="launch-email">Email address</label>
+        <input id="launch-email" type="email" name="email" placeholder="Join the launch list" required data-signup-input>
         <button type="submit">Notify me</button>
       </form>
       <ul class="footer__social" aria-label="Socials">
@@ -59,12 +62,11 @@
             <div class="footer__other-popover-content">
               <p class="footer__other-title">Explore more</p>
               <ul>
-                <li><a href="#" role="menuitem">THUMB-WAR</a></li>
-                <li><a href="#" role="menuitem">1UP Quiz</a></li>
-                <li><a href="#" role="menuitem">Music</a></li>
-                <li><a href="#" role="menuitem">Terms</a></li>
-                <li><a href="#" role="menuitem">Privacy</a></li>
-                <li><a href="#" role="menuitem">Support</a></li>
+                <li><a href="/thumb-war" role="menuitem" data-thumb-modal-trigger>THUMB-WAR</a></li>
+                <li><a href="/1upquiz" role="menuitem" data-quiz-modal-trigger>1UP Quiz</a></li>
+                <li><a href="https://soundcloud.com/arcade-earth" target="_blank" rel="noreferrer" role="menuitem">Music</a></li>
+                <li><a href="https://discord.gg/vhmaXxQQ3b" target="_blank" rel="noreferrer" role="menuitem">Support</a></li>
+                <li><a href="/terms" role="menuitem" data-legal-trigger="terms">Terms &amp; Privacy</a></li>
               </ul>
             </div>
           </div>
@@ -72,5 +74,163 @@
       </ul>
     </footer>
   </main>
+  <div class="legal-modal" data-legal-modal hidden>
+    <div class="legal-modal__backdrop" data-legal-close></div>
+    <div class="legal-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="legal-modal-title">
+      <header class="legal-modal__header">
+        <div>
+          <p class="legal-modal__eyebrow">Flight Manual</p>
+          <h2 id="legal-modal-title">Arcade Earth Policies</h2>
+        </div>
+        <button type="button" class="legal-modal__close" data-legal-close aria-label="Close policies">
+          <span aria-hidden="true">×</span>
+        </button>
+      </header>
+      <nav class="legal-modal__tabs" role="tablist" aria-label="Policy sections">
+        <button type="button" role="tab" id="legal-tab-terms" aria-controls="legal-panel-content" aria-selected="true" data-legal-tab="terms">Terms of Use</button>
+        <button type="button" role="tab" id="legal-tab-privacy" aria-controls="legal-panel-content" aria-selected="false" data-legal-tab="privacy">Privacy</button>
+      </nav>
+      <div class="legal-modal__body">
+        <article id="legal-panel-content" role="tabpanel" aria-labelledby="legal-tab-terms" class="legal-modal__content" data-legal-content></article>
+      </div>
+    </div>
+  </div>
+  <div class="quiz-modal" data-quiz-modal hidden>
+    <div class="quiz-modal__backdrop" data-quiz-modal-close></div>
+    <div class="quiz-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="quiz-modal-title">
+      <header class="quiz-modal__header">
+        <div class="quiz-modal__headline">
+          <p class="quiz-modal__eyebrow">Congrats to all 1-UP Quiz winners!</p>
+          <h2 id="quiz-modal-title">1-UP Quiz Hall of Fame</h2>
+        </div>
+        <button type="button" class="quiz-modal__close" aria-label="Close 1-UP Quiz info" data-quiz-modal-close>
+          <span aria-hidden="true">×</span>
+        </button>
+      </header>
+      <div class="quiz-modal__body">
+        <ul class="quiz-modal__stats" aria-label="Quiz format overview">
+          <li>25 retro-fueled gaming questions</li>
+          <li>12 minutes to beat the clock</li>
+          <li>No retries. Just glory.</li>
+        </ul>
+        <p class="quiz-modal__callout">Stay tuned—quizzes go live for 24 hours on the 11th of every month.</p>
+        <form class="footer-signup quiz-modal__signup" aria-label="Join the launch list" data-signup-form>
+          <label class="sr-only" for="quiz-email">Email address</label>
+          <input id="quiz-email" type="email" name="email" placeholder="Join the launch list" required data-signup-input>
+          <button type="submit">Notify me</button>
+        </form>
+      </div>
+      <section class="quiz-modal__leaderboards" aria-label="Recent leaderboards">
+        <article class="quiz-card">
+          <header>
+            <p class="quiz-card__subtitle">July 2025 Edition</p>
+          </header>
+          <dl class="quiz-card__podium">
+            <div class="quiz-card__placement quiz-card__placement--gold">
+              <dt>1st</dt>
+              <dd>
+                <span class="quiz-card__player">akerasi</span>
+              </dd>
+            </div>
+            <div class="quiz-card__placement quiz-card__placement--silver">
+              <dt>2nd</dt>
+              <dd>
+                <span class="quiz-card__player">Rick</span>
+              </dd>
+            </div>
+            <div class="quiz-card__placement quiz-card__placement--bronze">
+              <dt>3rd</dt>
+              <dd>
+                <span class="quiz-card__player">Tomasz</span>
+              </dd>
+            </div>
+          </dl>
+        </article>
+        <article class="quiz-card">
+          <header>
+            <p class="quiz-card__subtitle">June 2025 Edition</p>
+          </header>
+          <dl class="quiz-card__podium">
+            <div class="quiz-card__placement quiz-card__placement--gold">
+              <dt>1st</dt>
+              <dd>
+                <span class="quiz-card__player">Alex</span>
+              </dd>
+            </div>
+            <div class="quiz-card__placement quiz-card__placement--silver">
+              <dt>2nd</dt>
+              <dd>
+                <span class="quiz-card__player">Coops</span>
+              </dd>
+            </div>
+            <div class="quiz-card__placement quiz-card__placement--bronze">
+              <dt>3rd</dt>
+              <dd>
+                <span class="quiz-card__player">Seth</span>
+              </dd>
+            </div>
+          </dl>
+        </article>
+        <article class="quiz-card">
+          <header>
+            <p class="quiz-card__subtitle">May 2025 Edition</p>
+          </header>
+          <dl class="quiz-card__podium">
+            <div class="quiz-card__placement quiz-card__placement--gold">
+              <dt>1st</dt>
+              <dd>
+                <span class="quiz-card__player">Lewis</span>
+              </dd>
+            </div>
+            <div class="quiz-card__placement quiz-card__placement--silver">
+              <dt>2nd</dt>
+              <dd>
+                <span class="quiz-card__player">ÇAĞDAŞ OTUZBİROĞLU</span>
+              </dd>
+            </div>
+            <div class="quiz-card__placement quiz-card__placement--bronze">
+              <dt>3rd</dt>
+              <dd>
+                <span class="quiz-card__player">SS3</span>
+              </dd>
+            </div>
+          </dl>
+        </article>
+      </section>
+    </div>
+  </div>
+  <div class="thumb-modal" data-thumb-modal hidden>
+    <div class="thumb-modal__backdrop" data-thumb-modal-close></div>
+    <div class="thumb-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="thumb-modal-title">
+      <header class="thumb-modal__header">
+        <div class="thumb-modal__headline">
+          <p class="thumb-modal__eyebrow">Planetary Games Presents</p>
+          <h2 id="thumb-modal-title" class="sr-only">Thumb War</h2>
+        </div>
+        <button type="button" class="thumb-modal__close" aria-label="Close Thumb War info" data-thumb-modal-close>
+          <span aria-hidden="true">×</span>
+        </button>
+      </header>
+      <div class="thumb-modal__body">
+        <img class="thumb-modal__logo" src="/assets/thumb-war-logo.png" alt="Thumb War logo" loading="lazy">
+        <p class="thumb-modal__lead">
+          THUMB-WAR is a real-time mobile arcade battler where players duel 1-on-1 in short, high-intensity rounds using touch-based gestures. Players charge, swipe, block, and unleash their character’s unique abilities to outsmart opponents in a battle of timing and rhythm.
+        </p>
+        <p class="thumb-modal__lead">
+          The game sits at the intersection of skill, style, and street competition, blending kinetic touchscreen gameplay with collectible character progression, daily rewards, and social bragging rights.
+        </p>
+        <div class="thumb-modal__actions">
+          <a class="thumb-modal__button thumb-modal__button--ios" href="https://apps.apple.com/us/app/thumb-war/id6476893306" target="_blank" rel="noreferrer">
+            <span class="thumb-modal__button-label">Download on the</span>
+            <span class="thumb-modal__button-title">App Store</span>
+          </a>
+          <a class="thumb-modal__button thumb-modal__button--android" href="https://play.google.com/store/apps/details?id=com.corbstech.thumbwar&hl=en_US" target="_blank" rel="noreferrer">
+            <span class="thumb-modal__button-label">Get it on</span>
+            <span class="thumb-modal__button-title">Google Play</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
