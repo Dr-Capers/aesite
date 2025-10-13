@@ -37,7 +37,17 @@
 
     <section class="character-panel" aria-label="Arcade Earth mission specialist">
       <h2 class="sr-only">Arcade Earth mascot</h2>
-      <div class="character-display" data-character role="img" aria-label="Arcade Earth mascot animation" tabindex="0"></div>
+      <div class="character-display" data-character role="img" aria-label="Arcade Earth mascot animation" tabindex="0">
+        <div class="character-fallback" data-character-fallback role="status" aria-live="polite" hidden>
+          <div class="character-fallback__orbit" aria-hidden="true">
+            <span class="character-fallback__ring"></span>
+            <span class="character-fallback__ring character-fallback__ring--offset"></span>
+            <span class="character-fallback__core"></span>
+            <span class="character-fallback__spark"></span>
+          </div>
+          <p class="character-fallback__caption">Re-establishing uplink...</p>
+        </div>
+      </div>
     </section>
 
     <footer class="footer">

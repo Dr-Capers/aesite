@@ -11,6 +11,19 @@ export function initCharacter() {
     return null;
   }
 
+  const fallback = mount.querySelector('[data-character-fallback]');
+  const concealFallback = () => {
+    if (fallback && !fallback.hidden) {
+      fallback.hidden = true;
+    }
+  };
+  const revealFallback = () => {
+    if (fallback && fallback.hidden) {
+      fallback.hidden = false;
+    }
+  };
+  concealFallback();
+
   let coarsePointerQuery = null;
   let initialTouchMode = false;
   if (typeof window !== 'undefined' && window.matchMedia) {
@@ -25,6 +38,18 @@ export function initCharacter() {
   const sequences = loadCharacterSequences({ mode: initialMobileMode ? 'mobile' : 'desktop' });
   primeCharacterAssets(sequences);
 
+  const hasPlayableSequence = Object.values(sequences ?? {}).some(
+    (sequence) => Array.isArray(sequence?.frames) && sequence.frames.length > 0
+  );
+
+  if (!hasPlayableSequence) {
+    if (mount?.dataset) {
+      mount.dataset.characterReady = 'error';
+    }
+    revealFallback();
+    return null;
+  }
+
   const controller = new CharacterController({
     mount,
     sequences,
@@ -33,19 +58,60 @@ export function initCharacter() {
     mobileMode: initialMobileMode,
   });
 
+  const cleanupCallbacks = [];
   if (mount?.dataset) {
     mount.dataset.characterReady = 'loading';
-    controller
-      .ready()
-      .then(() => {
-        mount.dataset.characterReady = 'ready';
-      })
-      .catch(() => {
-        mount.dataset.characterReady = 'error';
-      });
   }
 
-  const cleanupCallbacks = [];
+  controller.ready().catch(() => {
+    if (mount?.dataset) {
+      mount.dataset.characterReady = 'error';
+    }
+    revealFallback();
+  });
+
+  const sprite = mount.querySelector('.character-display__sprite');
+  if (sprite) {
+    const handleSpriteLoad = () => {
+      if (mount?.dataset) {
+        mount.dataset.characterReady = 'ready';
+      }
+      concealFallback();
+    };
+
+    const handleSpriteError = () => {
+      const hasRenderableSprite =
+        typeof sprite.naturalWidth === 'number' &&
+        typeof sprite.naturalHeight === 'number' &&
+        sprite.naturalWidth > 0 &&
+        sprite.naturalHeight > 0;
+      if (!hasRenderableSprite) {
+        if (mount?.dataset) {
+          mount.dataset.characterReady = 'error';
+        }
+        revealFallback();
+      } else if (mount?.dataset?.characterReady !== 'ready') {
+        mount.dataset.characterReady = 'ready';
+        concealFallback();
+      }
+    };
+
+    sprite.addEventListener('load', handleSpriteLoad);
+    sprite.addEventListener('error', handleSpriteError);
+    cleanupCallbacks.push(() => {
+      sprite.removeEventListener('load', handleSpriteLoad);
+      sprite.removeEventListener('error', handleSpriteError);
+    });
+
+    if (sprite.complete) {
+      if (sprite.naturalWidth > 0) {
+        handleSpriteLoad();
+      } else {
+        handleSpriteError();
+      }
+    }
+  }
+
   const mobileMode = controller.mobileMode;
   let scheduledPointerFrame = null;
 
