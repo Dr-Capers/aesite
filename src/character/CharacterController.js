@@ -23,6 +23,7 @@ const IDLE_VARIANT_MIN_DELAY_MS = 5000;
 const IDLE_VARIANT_MAX_DELAY_MS = 12000;
 const IDLE_VARIANT_HEAVY_COOLDOWN_MS = 6000;
 const FIXING_TO_SLEEP_TIMEOUT_MS = 15000;
+const SLEEP_INTRO_FALLBACK_PADDING_FRAMES = 40;
 
 const DEFAULT_STATE_META = {
   idle: { priority: 0, fps: DEFAULT_ANIMATION_FPS, loop: true, fallback: 'idle' },
@@ -1071,7 +1072,10 @@ export class CharacterController {
     }
     const intro = this.getSequence('sleepIntro');
     if (intro?.frames?.length) {
-      const duration = this.getLinearSequenceDuration('sleepIntro');
+      const introMeta = this.getMetaForState('sleepIntro');
+      const introFps = introMeta?.fps ?? intro.fps ?? DEFAULT_ANIMATION_FPS;
+      const framePaddingMs = (SLEEP_INTRO_FALLBACK_PADDING_FRAMES * 1000) / Math.max(introFps, 1);
+      const duration = this.getLinearSequenceDuration('sleepIntro') + framePaddingMs;
       this.playTransientState('sleepIntro', duration, { fallback: 'sleep' });
       return true;
     }
