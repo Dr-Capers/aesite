@@ -1,4 +1,6 @@
 const DEFAULT_ANIMATION_FPS = 60;
+const FINAL_DANCE_STATE_KEYS = ['finalDance1', 'finalDance2', 'finalDance3', 'finalDance4'];
+const FINAL_DANCE_STATE_SET = new Set(FINAL_DANCE_STATE_KEYS);
 const HERO_STATES = new Set([
   'idle',
   'hover',
@@ -10,9 +12,18 @@ const HERO_STATES = new Set([
   'standUp',
   'spin',
   'selfie',
+  ...FINAL_DANCE_STATE_KEYS,
 ]);
 
-const STANDING_STATES = new Set(['hover', 'wave', 'standUp', 'spin', 'selfie', 'looking']);
+const STANDING_STATES = new Set([
+  'hover',
+  'wave',
+  'standUp',
+  'spin',
+  'selfie',
+  'looking',
+  ...FINAL_DANCE_STATE_KEYS,
+]);
 const MOBILE_ALLOWED_STATES = new Set(['idle', 'idleLong']);
 const MOBILE_IDLE_FPS = 28;
 const BUFFER_AHEAD_MIN = 3;
@@ -39,6 +50,10 @@ const DEFAULT_STATE_META = {
   sneeze: { priority: 5, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'idle' },
   spin: { priority: 6, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'idle' },
   selfie: { priority: 7, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'idle' },
+  finalDance1: { priority: 9, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'hover' },
+  finalDance2: { priority: 9, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'hover' },
+  finalDance3: { priority: 9, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'hover' },
+  finalDance4: { priority: 9, fps: DEFAULT_ANIMATION_FPS, loop: false, fallback: 'hover' },
 };
 
 const DEFAULT_OPTIONS = {
@@ -65,8 +80,8 @@ function detectCoarsePointer() {
 }
 
 const ANIMATION_MODULES = {
-  ...import.meta.glob('./animations/*/*.{webp,png}', { eager: true }),
-  ...import.meta.glob('../../assets/SecuenceTest/*/*.{webp,png}', { eager: true }),
+  ...import.meta.glob('./animations/**/*.{webp,png}', { eager: true }),
+  ...import.meta.glob('../../assets/SecuenceTest/**/*.{webp,png}', { eager: true }),
 };
 
 const FOLDER_STATE_MAP = {
@@ -88,6 +103,10 @@ const FOLDER_STATE_MAP = {
   wave: { state: 'wave', fps: DEFAULT_ANIMATION_FPS },
   Sleep: { state: 'sleep', fps: DEFAULT_ANIMATION_FPS },
   sleep: { state: 'sleep', fps: DEFAULT_ANIMATION_FPS },
+  1: { state: 'finalDance2', fps: DEFAULT_ANIMATION_FPS },
+  2: { state: 'finalDance1', fps: DEFAULT_ANIMATION_FPS },
+  3: { state: 'finalDance3', fps: DEFAULT_ANIMATION_FPS },
+  4: { state: 'finalDance4', fps: DEFAULT_ANIMATION_FPS },
 };
 
 const STATE_VARIANTS = {};
@@ -277,6 +296,7 @@ export class CharacterController {
     this.performanceMarksEnabled =
       typeof performance !== 'undefined' && typeof performance.mark === 'function';
     this.backgroundPreloadHandles = new Set();
+    this.finalDanceStage = 0;
 
     this.image = document.createElement('img');
     this.image.className = 'character-display__sprite';
@@ -364,6 +384,7 @@ export class CharacterController {
     this.lastIdleVariantState = null;
     this.clearTransientTimeouts();
     this.cancelBackgroundPreload();
+    this.finalDanceStage = 0;
     if (this.fpsRecoveryTimeout) {
       window.clearTimeout(this.fpsRecoveryTimeout);
       this.fpsRecoveryTimeout = null;
@@ -467,6 +488,18 @@ export class CharacterController {
   }
 
   handleSequenceComplete() {
+    if (this.isFinalDanceState(this.currentState)) {
+      this.finalDanceStage = 0;
+      const danceFallback = this.getFinalDanceBaselineState();
+      if (danceFallback && this.getSequence(danceFallback)?.frames?.length) {
+        this.setState(danceFallback, { resetTimer: false });
+      } else if (this.getSequence('idle')?.frames?.length) {
+        this.setState('idle', { resetTimer: false });
+      } else if (this.getSequence('hover')?.frames?.length) {
+        this.setState('hover', { resetTimer: false });
+      }
+      return;
+    }
     if (this.currentState === 'wave' && this.waveFallbackOverride) {
       const next = this.waveFallbackOverride;
       this.waveFallbackOverride = null;
@@ -527,7 +560,8 @@ export class CharacterController {
       nextState === 'idleLong' ||
       nextState === 'sleepIntro' ||
       nextState === 'wave' ||
-      nextState === 'sleep'
+      nextState === 'sleep' ||
+      FINAL_DANCE_STATE_SET.has(nextState)
     ) {
       this.deferIdleVariantUntilIdle = true;
       this.idleVariantCooldownUntil = Math.max(this.idleVariantCooldownUntil, now + IDLE_VARIANT_HEAVY_COOLDOWN_MS);
@@ -546,6 +580,9 @@ export class CharacterController {
       this.mount.dataset.characterState = this.currentState;
     }
     this.frameIndex = 0;
+    if (!FINAL_DANCE_STATE_SET.has(nextState)) {
+      this.finalDanceStage = 0;
+    }
     if (sequence.frames.length) {
       const firstFrame = sequence.frames[0];
       if (!this.isFrameReady(firstFrame)) {
@@ -736,6 +773,83 @@ export class CharacterController {
 
   getMetaForState(state) {
     return this.stateMeta[state] ?? null;
+  }
+
+  isFinalDanceState(state) {
+    return FINAL_DANCE_STATE_SET.has(state);
+  }
+
+  getAvailableFinalDanceStages() {
+    return FINAL_DANCE_STATE_KEYS.filter((stateKey) => this.getSequence(stateKey)?.frames?.length);
+  }
+
+  getFinalDanceBaselineState() {
+    if (this.hovering && this.getSequence('hover')?.frames?.length) {
+      return 'hover';
+    }
+    if (this.getSequence('idle')?.frames?.length) {
+      return 'idle';
+    }
+    if (this.getSequence('idleLong')?.frames?.length) {
+      return 'idleLong';
+    }
+    return null;
+  }
+
+  playFinalDanceStage(stageNumber) {
+    const availableStages = this.getAvailableFinalDanceStages();
+    if (!availableStages.length) {
+      return false;
+    }
+    const maxStage = availableStages.length;
+    if (stageNumber < 1 || stageNumber > maxStage) {
+      return false;
+    }
+    const stateKey = FINAL_DANCE_STATE_KEYS[stageNumber - 1];
+    const sequence = this.getSequence(stateKey);
+    if (!sequence?.frames?.length) {
+      return false;
+    }
+
+    this.pendingState = null;
+    this.waveFallbackOverride = null;
+    this.standUpFallbackOverride = null;
+
+    this.preloadStateFrames(stateKey, { highPriority: true });
+    this.setState(stateKey, { resetTimer: false });
+    this.finalDanceStage = stageNumber;
+    return true;
+  }
+
+  handleFinalDanceClick() {
+    if (this.mobileMode) {
+      return false;
+    }
+    const availableStages = this.getAvailableFinalDanceStages();
+    if (!availableStages.length) {
+      return false;
+    }
+
+    this.registerInteraction();
+
+    const maxStage = availableStages.length;
+    const currentStateIsDance = this.isFinalDanceState(this.currentState);
+    const currentStage =
+      currentStateIsDance && this.finalDanceStage
+        ? this.finalDanceStage
+        : currentStateIsDance
+        ? FINAL_DANCE_STATE_KEYS.indexOf(this.currentState) + 1
+        : 0;
+
+    if (!currentStateIsDance || currentStage <= 0) {
+      return this.playFinalDanceStage(1);
+    }
+
+    if (currentStage >= maxStage) {
+      return false;
+    }
+
+    return this.playFinalDanceStage(currentStage + 1);
   }
 
   setTouchMode(value) {
@@ -1382,15 +1496,19 @@ export function loadCharacterSequences({ folderOverrides = {}, mode = 'desktop' 
     hover: { entries: [], priority: 0 },
     looking: { entries: [], priority: 0 },
     sitDown: { entries: [], priority: 0 },
-  standUp: { entries: [], priority: 0 },
-  sleepIntro: { entries: [], priority: 0 },
-  sleep: { entries: [], priority: 0 },
+    standUp: { entries: [], priority: 0 },
+    sleepIntro: { entries: [], priority: 0 },
+    sleep: { entries: [], priority: 0 },
     gum: { entries: [], priority: 0 },
     wave: { entries: [], priority: 0 },
     idleLong: { entries: [], priority: 0 },
     sneeze: { entries: [], priority: 0 },
     spin: { entries: [], priority: 0 },
     selfie: { entries: [], priority: 0 },
+    finalDance1: { entries: [], priority: 0 },
+    finalDance2: { entries: [], priority: 0 },
+    finalDance3: { entries: [], priority: 0 },
+    finalDance4: { entries: [], priority: 0 },
   };
 
   const sequences = {
@@ -1398,15 +1516,19 @@ export function loadCharacterSequences({ folderOverrides = {}, mode = 'desktop' 
     hover: { frames: [], fps: DEFAULT_STATE_META.hover.fps },
     looking: { frames: [], fps: DEFAULT_STATE_META.looking.fps },
     sitDown: { frames: [], fps: DEFAULT_STATE_META.sitDown.fps },
-  standUp: { frames: [], fps: DEFAULT_STATE_META.standUp.fps },
-  sleepIntro: { frames: [], fps: DEFAULT_STATE_META.sleepIntro.fps },
-  sleep: { frames: [], fps: DEFAULT_STATE_META.sleep.fps },
+    standUp: { frames: [], fps: DEFAULT_STATE_META.standUp.fps },
+    sleepIntro: { frames: [], fps: DEFAULT_STATE_META.sleepIntro.fps },
+    sleep: { frames: [], fps: DEFAULT_STATE_META.sleep.fps },
     gum: { frames: [], fps: DEFAULT_STATE_META.gum.fps },
     wave: { frames: [], fps: DEFAULT_STATE_META.wave.fps },
     idleLong: { frames: [], fps: DEFAULT_STATE_META.idleLong.fps },
     sneeze: { frames: [], fps: DEFAULT_STATE_META.sneeze.fps },
     spin: { frames: [], fps: DEFAULT_STATE_META.spin.fps },
     selfie: { frames: [], fps: DEFAULT_STATE_META.selfie.fps },
+    finalDance1: { frames: [], fps: DEFAULT_STATE_META.finalDance1.fps },
+    finalDance2: { frames: [], fps: DEFAULT_STATE_META.finalDance2.fps },
+    finalDance3: { frames: [], fps: DEFAULT_STATE_META.finalDance3.fps },
+    finalDance4: { frames: [], fps: DEFAULT_STATE_META.finalDance4.fps },
   };
 
   for (const [path, module] of Object.entries(ANIMATION_MODULES)) {

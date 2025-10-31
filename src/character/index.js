@@ -497,6 +497,26 @@ export function initCharacter() {
     };
     register(pointerRegion, 'pointermove', handlePointerMove, { passive: true });
 
+    const handlePointerDownOnCharacter = (event) => {
+      if (event.defaultPrevented) {
+        return;
+      }
+      const isPrimaryPointer = typeof event.button !== 'number' || event.button === 0;
+      if (!isPrimaryPointer) {
+        return;
+      }
+      if (!isPointerOnCharacter(event)) {
+        return;
+      }
+      if (typeof controller.handleFinalDanceClick === 'function') {
+        const triggered = controller.handleFinalDanceClick();
+        if (triggered) {
+          event.preventDefault();
+        }
+      }
+    };
+    register(pointerRegion, 'pointerdown', handlePointerDownOnCharacter);
+
     const BACKGROUND_INTERACTORS_SELECTOR =
       'button, a, input, textarea, select, label, [role="button"], [data-character], .footer-signup, .footer__social';
     const handleBackgroundClick = (event) => {
