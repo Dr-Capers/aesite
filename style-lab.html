@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arcade Earth Site V2 Style Lab</title>
+  <meta name="description" content="Working style guide for the Arcade Earth Site V2 visual direction.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/style-lab.css">
+</head>
+<body>
+  <div class="bolt-backdrop" aria-hidden="true">
+    <video class="bolt-video" autoplay muted loop playsinline preload="auto">
+      <source src="/assets/style-lab/planetary-games-logo-video.mp4" type="video/mp4">
+    </video>
+  </div>
+  <header class="site-nav" aria-label="Style lab navigation">
+    <a class="mark" href="#top" aria-label="Arcade Earth home">
+      <span class="mark__text">Arcade Earth</span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="#home">Home</a>
+      <a href="#comic">Comic</a>
+      <a href="#games">Games</a>
+      <a href="#library">Library</a>
+      <a href="#community">Community</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section id="home" class="hero-lab">
+      <div class="hero-lab__content">
+        <p class="eyebrow">Planetary Games presents</p>
+        <h1>
+          <span>Arcade</span>
+          <span>Earth</span>
+        </h1>
+        <p class="hero-lab__copy">
+          We are building a connected arcade universe across comics, games, motion stories, and community drops.
+        </p>
+        <div class="hero-lab__actions">
+          <a class="button button--primary" href="#comic">Explore the Comic</a>
+          <a class="button button--secondary" href="#games">Download Thumb War</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-section" aria-labelledby="principles-title">
+      <div class="section-heading">
+        <p class="eyebrow">Direction</p>
+        <h2 id="principles-title">Minimal Black. White Signal. Arcadian Zap.</h2>
+      </div>
+      <div class="principle-grid">
+        <article>
+          <span class="index">01</span>
+          <h3>Reduce the space noise</h3>
+          <p>Black negative space replaces the current busy nebula/grid look. The electricity is the motion language.</p>
+        </article>
+        <article>
+          <span class="index">02</span>
+          <h3>Let type hit harder</h3>
+          <p>Condensed block headlines carry the brand weight. Body copy stays quiet, readable, and restrained.</p>
+        </article>
+        <article>
+          <span class="index">03</span>
+          <h3>Use blue as energy</h3>
+          <p>Cyan appears as a zap, glow, underline, or active state. It should feel rare and electric.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="lab-section lab-section--split" aria-labelledby="tokens-title">
+      <div class="section-heading">
+        <p class="eyebrow">Tokens</p>
+        <h2 id="tokens-title">Core Visual System</h2>
+      </div>
+      <div class="token-panel">
+        <div class="swatches" aria-label="Color swatches">
+          <div><span class="swatch swatch--black"></span><strong>Void Black</strong><small>#020203</small></div>
+          <div><span class="swatch swatch--white"></span><strong>Signal White</strong><small>#f7f7f2</small></div>
+          <div><span class="swatch swatch--zap"></span><strong>Zap Cyan</strong><small>#9effff</small></div>
+          <div><span class="swatch swatch--blue"></span><strong>Arc Blue</strong><small>#1b62ff</small></div>
+          <div><span class="swatch swatch--red"></span><strong>Glitch Red</strong><small>#ff2448</small></div>
+        </div>
+        <div class="type-card">
+          <p class="eyebrow">Type Pairing</p>
+          <h3>Barlow Condensed Black</h3>
+          <p>Inter handles UI, captions, forms, and product copy. Headlines should stay compressed, uppercase, and direct.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="comic" class="lab-section" aria-labelledby="comic-title">
+      <div class="section-heading">
+        <p class="eyebrow">Commerce Surface</p>
+        <h2 id="comic-title">Comic Product Cards</h2>
+      </div>
+      <div class="product-grid">
+        <article class="product-card product-card--feature">
+          <p class="eyebrow">Digital Comic</p>
+          <h3>Own the comic.</h3>
+          <p>Download the PDF, read in the Arcade Earth Library, and receive minor corrections when the issue updates.</p>
+          <a class="button button--primary" href="#library">Buy Digital</a>
+        </article>
+        <article class="product-card">
+          <p class="eyebrow">Motion Comic</p>
+          <h3>Experience the story.</h3>
+          <p>Watch instantly through the Library. Download remains secondary for offline viewing.</p>
+          <a class="button button--secondary" href="#watch">Watch Instantly</a>
+        </article>
+        <article class="product-card">
+          <p class="eyebrow">Physical Comic</p>
+          <h3>Collect the world.</h3>
+          <p>The definitive edition includes physical, digital, and motion comic access.</p>
+          <a class="button button--secondary" href="#comic">Collect Physical</a>
+        </article>
+      </div>
+    </section>
+
+    <section id="games" class="lab-section lab-section--band" aria-labelledby="games-title">
+      <div class="section-heading">
+        <p class="eyebrow">Games</p>
+        <h2 id="games-title">Thumb War Discovery</h2>
+      </div>
+      <article class="game-card">
+        <div>
+          <p class="eyebrow">Mobile Arcade Battler</p>
+          <img class="game-card__logo" src="/assets/style-lab/thumb-war-logo.png" alt="Thumb War">
+          <p>Fast, physical, touch-first duels from the Arcade Earth universe.</p>
+        </div>
+        <div class="game-card__actions">
+          <a class="button button--primary" href="#games">App Store</a>
+          <a class="button button--secondary" href="#games">Google Play</a>
+        </div>
+      </article>
+    </section>
+
+    <section id="library" class="lab-section" aria-labelledby="library-title">
+      <div class="section-heading">
+        <p class="eyebrow">Owned Media</p>
+        <h2 id="library-title">Arcade Earth Library</h2>
+      </div>
+      <div class="library-shell">
+        <article class="library-item">
+          <div>
+            <p class="eyebrow">Purchased</p>
+            <h3>Arcade Earth Vol. 1</h3>
+            <p>Read, watch, or download from one place.</p>
+          </div>
+          <div class="library-actions">
+            <button type="button">Read Online</button>
+            <button type="button">Watch Motion Comic</button>
+            <button type="button">Download PDF</button>
+            <button type="button">Download Video</button>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="watch" class="lab-section lab-section--split" aria-labelledby="media-title">
+      <div class="section-heading">
+        <p class="eyebrow">Reader + Player</p>
+        <h2 id="media-title">Native, Dark, Focused</h2>
+      </div>
+      <div class="media-samples">
+        <div class="reader-frame">
+          <div class="reader-frame__page">
+            <span>PDF</span>
+          </div>
+          <p>Reader shell: quiet controls, big page, no chrome fighting the art.</p>
+        </div>
+        <div class="player-frame">
+          <video controls preload="metadata" aria-label="Motion comic player placeholder"></video>
+          <p>Native video player first. Signed URL plumbing later.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

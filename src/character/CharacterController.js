@@ -1,4 +1,6 @@
 const DEFAULT_ANIMATION_FPS = 60;
+const OPTIMIZED_ANIMATION_FPS = 20;
+const OPTIMIZED_INTERACTION_FPS = 16;
 const FINAL_DANCE_STATE_KEYS = ['finalDance1', 'finalDance2', 'finalDance3', 'finalDance4'];
 const FINAL_DANCE_STATE_SET = new Set(FINAL_DANCE_STATE_KEYS);
 const HERO_STATES = new Set([
@@ -25,15 +27,16 @@ const STANDING_STATES = new Set([
   ...FINAL_DANCE_STATE_KEYS,
 ]);
 const MOBILE_ALLOWED_STATES = new Set(['idle', 'idleLong']);
-const MOBILE_IDLE_FPS = 28;
+const MOBILE_IDLE_FPS = OPTIMIZED_ANIMATION_FPS;
 const BUFFER_AHEAD_MIN = 3;
 const PRIORITY_FRAME_PRIMER_COUNT = 6;
 const FRAME_DROP_WINDOW_MS = 4000;
 const IDLE_SCHEDULER_TIMEOUT = 2000;
-const IDLE_VARIANT_MIN_DELAY_MS = 5000;
-const IDLE_VARIANT_MAX_DELAY_MS = 12000;
-const IDLE_VARIANT_HEAVY_COOLDOWN_MS = 6000;
-const FIXING_TO_SLEEP_TIMEOUT_MS = 15000;
+const IDLE_VARIANT_MIN_DELAY_MS = 3000;
+const IDLE_VARIANT_MAX_DELAY_MS = 7000;
+const IDLE_VARIANT_HEAVY_COOLDOWN_MS = 0;
+const IDLE_TO_FIXING_TIMEOUT_MS = 30000;
+const INITIAL_WAVE_DELAY_MS = 2000;
 const SLEEP_INTRO_FALLBACK_PADDING_FRAMES = 40;
 
 const DEFAULT_STATE_META = {
@@ -80,38 +83,38 @@ function detectCoarsePointer() {
 }
 
 const ANIMATION_MODULES = {
-  ...import.meta.glob('./animations/**/*.{webp,png}', { eager: true }),
-  ...import.meta.glob('../../assets/SecuenceTest/**/*.{webp,png}', { eager: true }),
+  ...import.meta.glob('./animations/v2/**/*.webp', { eager: true }),
 };
 
 const FOLDER_STATE_MAP = {
-  Fixing: { state: 'idleLong', fps: DEFAULT_ANIMATION_FPS },
-  Iddle: { state: 'hover', fps: DEFAULT_ANIMATION_FPS },
-  StandUP: { state: 'standUp', fps: DEFAULT_ANIMATION_FPS },
-  SitDown: { state: 'sitDown', fps: DEFAULT_ANIMATION_FPS },
-  Looking: { state: 'looking', fps: DEFAULT_ANIMATION_FPS },
-  Sneeze: { state: 'sneeze', fps: DEFAULT_ANIMATION_FPS },
-  looking: { state: 'looking', fps: DEFAULT_ANIMATION_FPS },
-  sneeze: { state: 'sneeze', fps: DEFAULT_ANIMATION_FPS },
-  GUM: { state: 'gum', fps: DEFAULT_ANIMATION_FPS },
-  gum: { state: 'gum', fps: DEFAULT_ANIMATION_FPS },
-  Spin: { state: 'spin', fps: DEFAULT_ANIMATION_FPS },
-  spin: { state: 'spin', fps: DEFAULT_ANIMATION_FPS },
-  Selfie: { state: 'selfie', fps: DEFAULT_ANIMATION_FPS },
-  selfie: { state: 'selfie', fps: DEFAULT_ANIMATION_FPS },
-  Wave: { state: 'wave', fps: DEFAULT_ANIMATION_FPS },
-  wave: { state: 'wave', fps: DEFAULT_ANIMATION_FPS },
-  Sleep: { state: 'sleep', fps: DEFAULT_ANIMATION_FPS },
-  sleep: { state: 'sleep', fps: DEFAULT_ANIMATION_FPS },
-  1: { state: 'finalDance2', fps: DEFAULT_ANIMATION_FPS },
-  2: { state: 'finalDance1', fps: DEFAULT_ANIMATION_FPS },
-  3: { state: 'finalDance3', fps: DEFAULT_ANIMATION_FPS },
-  4: { state: 'finalDance4', fps: DEFAULT_ANIMATION_FPS },
+  Fixing: { state: 'idleLong', fps: OPTIMIZED_ANIMATION_FPS },
+  Iddle: { state: 'hover', fps: OPTIMIZED_ANIMATION_FPS },
+  StandUP: { state: 'standUp', fps: OPTIMIZED_ANIMATION_FPS },
+  SitDown: { state: 'sitDown', fps: OPTIMIZED_ANIMATION_FPS },
+  Looking: { state: 'looking', fps: OPTIMIZED_INTERACTION_FPS },
+  Sneeze: { state: 'sneeze', fps: OPTIMIZED_INTERACTION_FPS },
+  looking: { state: 'looking', fps: OPTIMIZED_INTERACTION_FPS },
+  sneeze: { state: 'sneeze', fps: OPTIMIZED_INTERACTION_FPS },
+  GUM: { state: 'gum', fps: OPTIMIZED_INTERACTION_FPS },
+  gum: { state: 'gum', fps: OPTIMIZED_INTERACTION_FPS },
+  Spin: { state: 'spin', fps: OPTIMIZED_INTERACTION_FPS },
+  spin: { state: 'spin', fps: OPTIMIZED_INTERACTION_FPS },
+  Selfie: { state: 'selfie', fps: OPTIMIZED_INTERACTION_FPS },
+  selfie: { state: 'selfie', fps: OPTIMIZED_INTERACTION_FPS },
+  Wave: { state: 'wave', fps: OPTIMIZED_ANIMATION_FPS },
+  wave: { state: 'wave', fps: OPTIMIZED_ANIMATION_FPS },
+  Sleep: { state: 'sleep', fps: OPTIMIZED_INTERACTION_FPS },
+  sleep: { state: 'sleep', fps: OPTIMIZED_INTERACTION_FPS },
+  1: { state: 'finalDance2', fps: OPTIMIZED_INTERACTION_FPS },
+  2: { state: 'finalDance1', fps: OPTIMIZED_INTERACTION_FPS },
+  3: { state: 'finalDance3', fps: OPTIMIZED_INTERACTION_FPS },
+  4: { state: 'finalDance4', fps: OPTIMIZED_INTERACTION_FPS },
 };
 
 const STATE_VARIANTS = {};
 
 const IDLE_VARIANT_STATES = ['looking', 'gum', 'selfie', 'spin'];
+const STANDING_INTERACTION_STATES = new Set(['looking', 'gum', 'sneeze', 'spin', 'selfie']);
 
 const GLOBAL_PRELOAD_CACHE = new Map();
 const GLOBAL_PRELOAD_IDLE_HANDLES = new Set();
@@ -257,17 +260,16 @@ export class CharacterController {
       });
     }
 
-    const hasSitDown = Array.isArray(this.sequences.sitDown?.frames) && this.sequences.sitDown.frames.length > 0;
     const hasFixing = Array.isArray(this.sequences.idleLong?.frames) && this.sequences.idleLong.frames.length > 0;
     const hasIdle = Array.isArray(this.sequences.idle?.frames) && this.sequences.idle.frames.length > 0;
-    if (this.mobileMode && hasFixing) {
-      this.currentState = 'idleLong';
-    } else if (hasSitDown) {
-      this.currentState = 'sitDown';
-    } else if (hasIdle) {
+    if (hasIdle) {
       this.currentState = 'idle';
-    } else {
+    } else if (Array.isArray(this.sequences.hover?.frames) && this.sequences.hover.frames.length > 0) {
       this.currentState = 'hover';
+    } else if (hasFixing) {
+      this.currentState = 'idleLong';
+    } else {
+      this.currentState = Object.keys(sequences).find((state) => sequences[state]?.frames?.length) || 'idle';
     }
     if (this.mount?.dataset) {
       this.mount.dataset.characterState = this.currentState;
@@ -317,10 +319,13 @@ export class CharacterController {
         this.stop();
         this.renderFrame();
         this.clearIdleVariant();
+        this.cancelIdleToFixingTimer();
+        this.cancelInitialWaveTimer();
       } else {
         this.start();
         if (this.currentState === 'idle') {
           this.scheduleIdleVariant();
+          this.scheduleIdleToFixingTimerIfNeeded();
         }
       }
     };
@@ -330,7 +335,9 @@ export class CharacterController {
 
     this.waveFallbackOverride = null;
     this.standUpFallbackOverride = null;
-    this.sleepTimer = null;
+    this.idleToFixingTimer = null;
+    this.initialWaveTimer = null;
+    this.hasPlayedInitialWave = false;
 
     this.readyPromise = this.preloadSequences(this.sequences)
       .catch((error) => {
@@ -344,6 +351,12 @@ export class CharacterController {
         this.scheduleBufferFill(this.currentState);
         this.renderFrame(true);
         this.start();
+        if (!this.scheduleInitialWave()) {
+          if (this.currentState === 'idle') {
+            this.scheduleIdleVariant();
+          }
+          this.scheduleIdleToFixingTimerIfNeeded();
+        }
       });
 
     if (this.shouldReduceMotion) {
@@ -389,7 +402,8 @@ export class CharacterController {
       window.clearTimeout(this.fpsRecoveryTimeout);
       this.fpsRecoveryTimeout = null;
     }
-    this.cancelSleepTimer();
+    this.cancelIdleToFixingTimer();
+    this.cancelInitialWaveTimer();
     this.reducedMotionQuery.removeEventListener('change', this.onReducedMotionChange);
     this.preloadedFrames.clear();
     this.frameDropHistory = [];
@@ -412,7 +426,7 @@ export class CharacterController {
       return;
     }
 
-    const baseFps = meta?.fps ?? sequence.fps ?? DEFAULT_ANIMATION_FPS;
+    const baseFps = sequence.fps ?? meta?.fps ?? DEFAULT_ANIMATION_FPS;
     const effectiveFps = Math.max(1, baseFps * this.dynamicFpsScale);
     const frameInterval = 1000 / effectiveFps;
     const elapsed = timestamp - this.lastFrameTime;
@@ -517,8 +531,27 @@ export class CharacterController {
       }
     }
     const meta = this.getMetaForState(this.currentState);
-    const fallback = meta?.fallback ?? 'idle';
+    const fallback = this.resolveCompletionFallback(this.currentState, meta?.fallback);
     this.setState(fallback, { resetTimer: false });
+  }
+
+  resolveCompletionFallback(state, fallback = 'idle') {
+    if (
+      fallback === 'hover' &&
+      STANDING_INTERACTION_STATES.has(state) &&
+      this.getSequence('hover')?.frames?.length
+    ) {
+      return 'hover';
+    }
+    if (fallback === 'idle' && !this.getSequence('idle')?.frames?.length) {
+      if (this.getSequence('idleLong')?.frames?.length) {
+        return 'idleLong';
+      }
+      if (this.getSequence('hover')?.frames?.length) {
+        return 'hover';
+      }
+    }
+    return fallback;
   }
 
   evaluateState(timestamp) {
@@ -535,7 +568,7 @@ export class CharacterController {
 
   }
 
-  setState(nextState, { resetTimer = true } = {}) {
+  setState(nextState, { resetTimer = true, forceRestart = false } = {}) {
     if (this.mobileMode && !MOBILE_ALLOWED_STATES.has(nextState)) {
       return;
     }
@@ -543,10 +576,11 @@ export class CharacterController {
     if (!sequence?.frames?.length) {
       return;
     }
-    if (this.currentState === nextState && this.frameIndex === 0) {
+    if (!forceRestart && this.currentState === nextState && this.frameIndex === 0) {
       if (nextState === 'idle' && !this.mobileMode) {
         this.deferIdleVariantUntilIdle = false;
         this.scheduleIdleVariant();
+        this.scheduleIdleToFixingTimerIfNeeded();
       } else {
         this.clearIdleVariant();
       }
@@ -568,7 +602,9 @@ export class CharacterController {
     } else {
       this.deferIdleVariantUntilIdle = false;
     }
-    this.cancelSleepTimer();
+    if (nextState === 'idleLong') {
+      this.cancelIdleToFixingTimer();
+    }
     if (this.currentState === 'wave' && nextState !== 'wave') {
       this.waveFallbackOverride = null;
     }
@@ -598,47 +634,98 @@ export class CharacterController {
       this.clearIdleVariant();
       return;
     }
-    this.scheduleFixingSleepTimerIfNeeded();
     if (nextState === 'idle') {
       this.scheduleIdleVariant();
+      this.scheduleIdleToFixingTimerIfNeeded();
     } else {
       this.clearIdleVariant();
     }
   }
 
-  scheduleFixingSleepTimerIfNeeded() {
+  scheduleIdleToFixingTimerIfNeeded() {
     if (typeof window === 'undefined' || this.mobileMode) {
       return;
     }
-    this.cancelSleepTimer();
+    if (this.idleToFixingTimer !== null) {
+      return;
+    }
     if (
       this.isDestroyed ||
-      this.currentState !== 'idleLong' ||
-      !this.getSequence('sleep')?.frames?.length
+      this.currentState !== 'idle' ||
+      this.shouldReduceMotion ||
+      !this.getSequence('idleLong')?.frames?.length
     ) {
       return;
     }
-    this.sleepTimer = window.setTimeout(() => {
-      this.sleepTimer = null;
-      if (this.isDestroyed || this.currentState !== 'idleLong') {
-        return;
-      }
-      if (!this.canInterrupt('sleep')) {
-        this.scheduleFixingSleepTimerIfNeeded();
-        return;
-      }
-      this.playSleepSequence();
-    }, FIXING_TO_SLEEP_TIMEOUT_MS);
+    this.idleToFixingTimer = window.setTimeout(() => {
+      this.idleToFixingTimer = null;
+      this.enterFixingWhenIdle();
+    }, IDLE_TO_FIXING_TIMEOUT_MS);
   }
 
-  cancelSleepTimer() {
-    if (typeof window === 'undefined') {
-      this.sleepTimer = null;
+  enterFixingWhenIdle() {
+    if (typeof window === 'undefined' || this.mobileMode || this.isDestroyed || this.currentState === 'idleLong') {
       return;
     }
-    if (this.sleepTimer !== null) {
-      window.clearTimeout(this.sleepTimer);
-      this.sleepTimer = null;
+
+    if (this.currentState !== 'idle') {
+      this.idleToFixingTimer = window.setTimeout(() => {
+        this.idleToFixingTimer = null;
+        this.enterFixingWhenIdle();
+      }, 500);
+      return;
+    }
+
+    if (this.getSequence('sitDown')?.frames?.length && this.canInterrupt('sitDown')) {
+      const duration = this.getLinearSequenceDuration('sitDown');
+      this.playTransientState('sitDown', duration, { fallback: 'idleLong' });
+      return;
+    }
+
+    this.trigger('idleLong', { immediate: true });
+  }
+
+  cancelIdleToFixingTimer() {
+    if (typeof window === 'undefined') {
+      this.idleToFixingTimer = null;
+      return;
+    }
+    if (this.idleToFixingTimer !== null) {
+      window.clearTimeout(this.idleToFixingTimer);
+      this.idleToFixingTimer = null;
+    }
+  }
+
+  scheduleInitialWave() {
+    if (
+      typeof window === 'undefined' ||
+      this.mobileMode ||
+      this.shouldReduceMotion ||
+      this.hasPlayedInitialWave ||
+      !this.getSequence('wave')?.frames?.length
+    ) {
+      return false;
+    }
+    this.cancelInitialWaveTimer();
+    this.initialWaveTimer = window.setTimeout(() => {
+      this.initialWaveTimer = null;
+      if (this.isDestroyed || this.hasPlayedInitialWave || this.shouldReduceMotion) {
+        return;
+      }
+      this.hasPlayedInitialWave = true;
+      this.playWaveSequence({ fallback: 'idle' });
+    }, INITIAL_WAVE_DELAY_MS);
+    return true;
+  }
+
+  cancelInitialWaveTimer() {
+    if (typeof window === 'undefined') {
+      this.initialWaveTimer = null;
+      return;
+    }
+    if (this.initialWaveTimer !== null) {
+      window.clearTimeout(this.initialWaveTimer);
+      this.initialWaveTimer = null;
     }
   }
 
@@ -662,64 +749,8 @@ export class CharacterController {
     if (this.mobileMode) {
       return;
     }
-    const wasHovering = this.hovering;
     this.hovering = isHovering;
     this.registerInteraction();
-
-    if (isHovering) {
-      if (wasHovering) {
-        return;
-      }
-
-      if (!this.isStandingState(this.currentState)) {
-        const standUpSequence = this.getSequence('standUp');
-        if (standUpSequence?.frames?.length && this.canInterrupt('standUp')) {
-          const hoverAvailable = this.getSequence('hover')?.frames?.length;
-          const idleLongAvailable = this.getSequence('idleLong')?.frames?.length;
-          const fallbackState = hoverAvailable ? 'hover' : idleLongAvailable ? 'idleLong' : 'idle';
-          const duration = this.getLinearSequenceDuration('standUp');
-          this.playTransientState('standUp', duration, {
-            fallback: fallbackState,
-          });
-          return;
-        }
-      }
-
-      if (this.isStandingState(this.currentState)) {
-        const sneezeSequence = this.getSequence('sneeze');
-        if (sneezeSequence?.frames?.length) {
-          this.playLoopingState('sneeze', { loops: 1, fallback: 'idle' });
-          return;
-        }
-      }
-
-      if (this.sequences.wave) {
-        this.trigger('wave', { immediate: true });
-      } else {
-        this.trigger('hover', { immediate: true });
-      }
-      return;
-    }
-
-    if (!wasHovering) {
-      return;
-    }
-
-    const sitDownSequence = this.getSequence('sitDown');
-    if (sitDownSequence?.frames?.length) {
-      this.pendingState = null;
-      this.waveFallbackOverride = null;
-      this.standUpFallbackOverride = null;
-      this.setState('sitDown', { resetTimer: false });
-      return;
-    }
-
-    const idleLongSequence = this.getSequence('idleLong');
-    if (idleLongSequence?.frames?.length) {
-      this.trigger('idleLong', { immediate: true });
-    } else {
-      this.trigger('idle', { immediate: true });
-    }
   }
 
   updateProximity(distance) {
@@ -731,15 +762,7 @@ export class CharacterController {
     }
     const wasActive = this.proximityActive;
     this.proximityActive = distance <= this.proximityThreshold;
-    if (
-      this.proximityActive &&
-      !wasActive &&
-      !this.hovering &&
-      this.pendingState !== 'idleLong' &&
-      this.currentState !== 'idleLong'
-    ) {
-      this.trigger('wave', { immediate: true });
-    }
+    void wasActive;
   }
 
   registerInteraction() {
@@ -755,6 +778,34 @@ export class CharacterController {
 
   notifyUserEvent() {
     this.registerInteraction();
+  }
+
+  handleCharacterClick() {
+    if (this.mobileMode) {
+      return false;
+    }
+
+    if (this.currentState === 'idleLong') {
+      this.cancelIdleToFixingTimer();
+      this.clearIdleVariant();
+      if (this.getSequence('standUp')?.frames?.length && this.canInterrupt('standUp')) {
+        const duration = this.getLinearSequenceDuration('standUp');
+        this.standUpFallbackOverride = 'idle';
+        this.playTransientState('standUp', duration, { fallback: 'idle' });
+      } else {
+        this.trigger('idle', { immediate: true });
+      }
+      return true;
+    }
+
+    if (this.getSequence('sneeze')?.frames?.length) {
+      this.clearTransientTimeouts();
+      this.pendingState = null;
+      this.playLoopingState('sneeze', { loops: 1, fallback: 'idle', forceRestart: true, force: true });
+      return true;
+    }
+
+    return false;
   }
 
   canInterrupt(nextState) {
@@ -784,11 +835,11 @@ export class CharacterController {
   }
 
   getFinalDanceBaselineState() {
-    if (this.hovering && this.getSequence('hover')?.frames?.length) {
-      return 'hover';
-    }
     if (this.getSequence('idle')?.frames?.length) {
       return 'idle';
+    }
+    if (this.getSequence('hover')?.frames?.length) {
+      return 'hover';
     }
     if (this.getSequence('idleLong')?.frames?.length) {
       return 'idleLong';
@@ -822,34 +873,7 @@ export class CharacterController {
   }
 
   handleFinalDanceClick() {
-    if (this.mobileMode) {
-      return false;
-    }
-    const availableStages = this.getAvailableFinalDanceStages();
-    if (!availableStages.length) {
-      return false;
-    }
-
-    this.registerInteraction();
-
-    const maxStage = availableStages.length;
-    const currentStateIsDance = this.isFinalDanceState(this.currentState);
-    const currentStage =
-      currentStateIsDance && this.finalDanceStage
-        ? this.finalDanceStage
-        : currentStateIsDance
-        ? FINAL_DANCE_STATE_KEYS.indexOf(this.currentState) + 1
-        : 0;
-
-    if (!currentStateIsDance || currentStage <= 0) {
-      return this.playFinalDanceStage(1);
-    }
-
-    if (currentStage >= maxStage) {
-      return false;
-    }
-
-    return this.playFinalDanceStage(currentStage + 1);
+    return false;
   }
 
   setTouchMode(value) {
@@ -1089,7 +1113,7 @@ export class CharacterController {
     return next;
   }
 
-  playLoopingState(state, { loops = 1, fallback } = {}) {
+  playLoopingState(state, { loops = 1, fallback, forceRestart = false, force = false } = {}) {
     if (this.mobileMode && !MOBILE_ALLOWED_STATES.has(state)) {
       return;
     }
@@ -1100,11 +1124,11 @@ export class CharacterController {
     }
 
     const meta = this.getMetaForState(selectedState);
-    const fps = meta?.fps ?? sequence.fps ?? DEFAULT_ANIMATION_FPS;
+    const fps = sequence.fps ?? meta?.fps ?? DEFAULT_ANIMATION_FPS;
     const duration = (loops * sequence.frames.length * 1000) / Math.max(fps, 1);
     const shouldForceTimeout = Boolean(meta?.loop);
     const transientDuration = shouldForceTimeout ? duration + 120 : null;
-    this.playTransientState(selectedState, transientDuration, { fallback });
+    this.playTransientState(selectedState, transientDuration, { fallback, forceRestart, force });
   }
 
   resolveVariant(state) {
@@ -1176,7 +1200,7 @@ export class CharacterController {
       return 0;
     }
     const meta = this.getMetaForState(state);
-    const fps = meta?.fps ?? sequence.fps ?? DEFAULT_ANIMATION_FPS;
+    const fps = sequence.fps ?? meta?.fps ?? DEFAULT_ANIMATION_FPS;
     return (sequence.frames.length * 1000) / Math.max(fps, 1);
   }
 
@@ -1187,7 +1211,7 @@ export class CharacterController {
     const intro = this.getSequence('sleepIntro');
     if (intro?.frames?.length) {
       const introMeta = this.getMetaForState('sleepIntro');
-      const introFps = introMeta?.fps ?? intro.fps ?? DEFAULT_ANIMATION_FPS;
+      const introFps = intro.fps ?? introMeta?.fps ?? DEFAULT_ANIMATION_FPS;
       const framePaddingMs = (SLEEP_INTRO_FALLBACK_PADDING_FRAMES * 1000) / Math.max(introFps, 1);
       const duration = this.getLinearSequenceDuration('sleepIntro') + framePaddingMs;
       this.playTransientState('sleepIntro', duration, { fallback: 'sleep' });
@@ -1200,24 +1224,27 @@ export class CharacterController {
     return false;
   }
 
-  playTransientState(state, duration = 2200, { fallback } = {}) {
+  playTransientState(state, duration = 2200, { fallback, forceRestart = false, force = false } = {}) {
     if (
       (this.mobileMode && !MOBILE_ALLOWED_STATES.has(state)) ||
       !this.sequences[state] ||
-      !this.canInterrupt(state)
+      (!force && !this.canInterrupt(state))
     ) {
       return;
     }
 
     this.registerInteraction();
     this.preloadStateFrames(state, { highPriority: true });
-    this.setState(state, { resetTimer: false });
+    this.setState(state, { resetTimer: false, forceRestart });
 
     if (Number.isFinite(duration) && duration > 0) {
       const timeoutId = window.setTimeout(() => {
         this.transientTimeouts.delete(timeoutId);
         if (this.currentState === state) {
-          const nextFallback = fallback ?? this.getMetaForState(state)?.fallback ?? 'idle';
+          const nextFallback = this.resolveCompletionFallback(
+            state,
+            fallback ?? this.getMetaForState(state)?.fallback ?? 'idle'
+          );
           this.trigger(nextFallback, { immediate: true });
         }
       }, Math.max(1000, duration));
@@ -1584,6 +1611,7 @@ export function loadCharacterSequences({ folderOverrides = {}, mode = 'desktop' 
     });
     if (introFrames.length) {
       sequences.sleepIntro.frames = introFrames;
+      sequences.sleepIntro.fps = sequences.sleep.fps;
     }
     sequences.sleep.frames = loopFrames.length ? loopFrames : introFrames;
   }
@@ -1609,6 +1637,10 @@ export function loadCharacterSequences({ folderOverrides = {}, mode = 'desktop' 
       sequences.idle.frames = sequences.idleLong.frames.slice();
       sequences.idle.fps = sequences.idleLong.fps;
     }
+  }
+
+  if (import.meta.env?.DEV && typeof window !== 'undefined') {
+    window.__arcadeEarthCharacterSequences = sequences;
   }
 
   return sequences;

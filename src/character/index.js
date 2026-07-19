@@ -22,7 +22,11 @@ export function initCharacter() {
       fallback.hidden = false;
     }
   };
-  concealFallback();
+
+  if (mount?.dataset) {
+    mount.dataset.characterReady = 'loading';
+  }
+  revealFallback();
 
   let coarsePointerQuery = null;
   let initialTouchMode = false;
@@ -59,11 +63,30 @@ export function initCharacter() {
   });
 
   const cleanupCallbacks = [];
-  if (mount?.dataset) {
-    mount.dataset.characterReady = 'loading';
-  }
+  const MINIMUM_FALLBACK_MS = 700;
+  let spriteLoaded = false;
+  let controllerReady = false;
+  let minimumFallbackElapsed = false;
+  const maybeCompleteLoading = () => {
+    if (!spriteLoaded || !controllerReady || !minimumFallbackElapsed) {
+      return;
+    }
+    if (mount?.dataset) {
+      mount.dataset.characterReady = 'ready';
+    }
+    concealFallback();
+  };
 
-  controller.ready().catch(() => {
+  const minimumFallbackTimer = window.setTimeout(() => {
+    minimumFallbackElapsed = true;
+    maybeCompleteLoading();
+  }, MINIMUM_FALLBACK_MS);
+  cleanupCallbacks.push(() => window.clearTimeout(minimumFallbackTimer));
+
+  controller.ready().then(() => {
+    controllerReady = true;
+    maybeCompleteLoading();
+  }).catch(() => {
     if (mount?.dataset) {
       mount.dataset.characterReady = 'error';
     }
@@ -73,10 +96,8 @@ export function initCharacter() {
   const sprite = mount.querySelector('.character-display__sprite');
   if (sprite) {
     const handleSpriteLoad = () => {
-      if (mount?.dataset) {
-        mount.dataset.characterReady = 'ready';
-      }
-      concealFallback();
+      spriteLoaded = true;
+      maybeCompleteLoading();
     };
 
     const handleSpriteError = () => {
@@ -91,8 +112,8 @@ export function initCharacter() {
         }
         revealFallback();
       } else if (mount?.dataset?.characterReady !== 'ready') {
-        mount.dataset.characterReady = 'ready';
-        concealFallback();
+        spriteLoaded = true;
+        maybeCompleteLoading();
       }
     };
 
@@ -306,7 +327,7 @@ export function initCharacter() {
 
         if (!playedVariant && controller.sequences?.looking?.frames?.length) {
           if (typeof controller.playLoopingState === 'function') {
-            controller.playLoopingState('looking', { loops: 1, fallback: 'idle' });
+            controller.playLoopingState('looking', { loops: 1, fallback: 'hover' });
           } else {
             controller.trigger('looking', { immediate: true });
           }
@@ -350,7 +371,7 @@ export function initCharacter() {
         typeof controller.getMetaForState === 'function'
           ? controller.getMetaForState('sneeze')
           : null;
-      const sneezeFps = sneezeMeta?.fps ?? sneezeSequence.fps ?? 60;
+      const sneezeFps = sneezeSequence.fps ?? sneezeMeta?.fps ?? 60;
       const sneezeDuration =
         sneezeSequence.frames.length > 0
           ? (sneezeSequence.frames.length * 1000) / Math.max(sneezeFps, 1)
@@ -358,7 +379,7 @@ export function initCharacter() {
 
       lookingCooldownUntil = now + sneezeDuration;
 
-      const sneezeFallback = pointerInside ? 'hover' : 'idle';
+      const sneezeFallback = pointerInside || controller.sequences?.hover?.frames?.length ? 'hover' : 'idleLong';
 
       if (typeof controller.playLoopingState === 'function') {
         controller.playLoopingState('sneeze', { loops: 1, fallback: sneezeFallback });
@@ -369,7 +390,7 @@ export function initCharacter() {
         if (pointerInside) {
           controller.trigger('hover');
         } else {
-          controller.trigger('idle');
+          controller.trigger(controller.sequences?.idleLong?.frames?.length ? 'idleLong' : 'hover');
         }
       }
 
@@ -410,7 +431,6 @@ export function initCharacter() {
       hoverLastSample = point;
       lastSpeedSample = point;
       rapidMotionAccum = 0;
-      scheduleHoverLinger();
     };
 
     const handleHoverLeave = (event) => {
@@ -436,35 +456,7 @@ export function initCharacter() {
       if (event.pointerType === 'touch' || !pointerInside) {
         return;
       }
-      const now = performance.now();
-      const currentPoint = { x: event.clientX, y: event.clientY, time: now };
-
-      if (hoverLastSample) {
-        const dist = Math.hypot(currentPoint.x - hoverLastSample.x, currentPoint.y - hoverLastSample.y);
-        if (dist > POINTER_STILL_THRESHOLD) {
-          scheduleHoverLinger();
-        }
-      } else {
-        scheduleHoverLinger();
-      }
-      hoverLastSample = currentPoint;
-
-      if (lastSpeedSample) {
-        const dist = Math.hypot(currentPoint.x - lastSpeedSample.x, currentPoint.y - lastSpeedSample.y);
-        const dt = now - lastSpeedSample.time;
-        if (dt > 0) {
-          const speed = (dist / dt) * 1000;
-          if (speed >= RAPID_SPEED_THRESHOLD) {
-            rapidMotionAccum = Math.min(RAPID_REQUIRED_MS, rapidMotionAccum + dt);
-            if (rapidMotionAccum >= RAPID_REQUIRED_MS) {
-              triggerSneeze(now);
-            }
-          } else {
-            rapidMotionAccum = Math.max(0, rapidMotionAccum - dt * 0.6);
-          }
-        }
-      }
-      lastSpeedSample = currentPoint;
+      hoverLastSample = { x: event.clientX, y: event.clientY, time: performance.now() };
     }, { passive: true });
 
     register(mount, 'pointerenter', handleHoverEnter);
@@ -508,10 +500,11 @@ export function initCharacter() {
       if (!isPointerOnCharacter(event)) {
         return;
       }
-      if (typeof controller.handleFinalDanceClick === 'function') {
-        const triggered = controller.handleFinalDanceClick();
+      if (typeof controller.handleCharacterClick === 'function') {
+        const triggered = controller.handleCharacterClick();
         if (triggered) {
           event.preventDefault();
+          return;
         }
       }
     };
@@ -534,11 +527,7 @@ export function initCharacter() {
       if (!isPrimaryPointer) {
         return;
       }
-      controller.playWaveSequence({
-        ensureStanding: true,
-        fallback: 'idle',
-        sitAfter: true,
-      });
+      controller.notifyUserEvent();
     };
     register(document, 'click', handleBackgroundClick);
   };
@@ -546,12 +535,6 @@ export function initCharacter() {
   if (!mobileMode) {
     setupDesktopInteractions();
   }
-
-  const ctaButton = document.querySelector('.footer-signup button');
-  register(ctaButton, 'click', () => controller.trigger('celebrate'));
-
-  const handleSignupCelebration = () => controller.trigger('celebrate', { immediate: true });
-  register(document, 'signup:success', handleSignupCelebration);
 
   controller.cleanup = () => {
     cleanupCallbacks.forEach((fn) => fn());

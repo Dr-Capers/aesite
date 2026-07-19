@@ -61,25 +61,12 @@ export function initSignupForm() {
   const FEEDBACK_CLASSES = ['signup-feedback--success', 'signup-feedback--error'];
 
   const setFeedback = (form, type = null, message = '') => {
-    const isModalForm = Boolean(form.closest('[data-quiz-modal]'));
-    const existing = form.__signupFeedback;
-
-    if (!isModalForm) {
-      if (existing instanceof HTMLElement) {
-        existing.remove();
-        delete form.__signupFeedback;
-      }
-      if (type) {
-        form.dataset.signupState = type;
-      } else {
-        delete form.dataset.signupState;
-      }
-      return;
-    }
+    const existing = form.__signupFeedback || form.querySelector('[data-signup-feedback]');
 
     if (!message) {
       if (existing instanceof HTMLElement) {
-        existing.remove();
+        existing.hidden = true;
+        existing.textContent = '';
       }
       delete form.__signupFeedback;
       delete form.dataset.signupState;
@@ -95,7 +82,7 @@ export function initSignupForm() {
       form.__signupFeedback = feedback;
     }
 
-    if (feedback.parentNode !== form.parentNode || feedback.previousElementSibling !== form) {
+    if (!feedback.parentNode) {
       form.insertAdjacentElement('afterend', feedback);
     }
 
