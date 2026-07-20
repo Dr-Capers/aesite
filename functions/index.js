@@ -1,11 +1,11 @@
 import * as functions from 'firebase-functions';
-import { onDocumentCreated } from 'firebase-functions/v2/firestore';
+import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { onRequest } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import admin from 'firebase-admin';
 import crypto from 'node:crypto';
 import { google } from 'googleapis';
-import sgMail from '@sendgrid/mail';
+import { Resend } from 'resend';
 import Stripe from 'stripe';
 
 admin.initializeApp();
@@ -19,6 +19,7 @@ const sheetConfigReady = Boolean(
     process.env.SERVICE_ACCOUNT_CLIENT_EMAIL &&
     process.env.SERVICE_ACCOUNT_PRIVATE_KEY
 );
+const SIGNUP_SHEET_RANGE = process.env.GOOGLE_SIGNUPS_SHEET_RANGE || 'Sheet1!A:G';
 
 const sheetsClient = sheetConfigReady ? google.sheets('v4') : null;
 const sheetsAuth = sheetConfigReady
@@ -33,21 +34,25 @@ const sheetsAuth = sheetConfigReady
     })
   : null;
 
-const SENDGRID_PLACEHOLDER = 'SENDGRID_API_KEY_PLACEHOLDER';
-const SENDGRID_KEY = process.env.SENDGRID_API_KEY || SENDGRID_PLACEHOLDER;
-const SENDGRID_FROM =
-  process.env.SENDGRID_FROM || 'Arcade Earth Crew <crew@arcade.earth>';
-const sendgridReady = Boolean(SENDGRID_KEY && SENDGRID_KEY !== SENDGRID_PLACEHOLDER);
-
-if (sendgridReady) {
-  sgMail.setApiKey(SENDGRID_KEY);
-}
-
 const STRIPE_API_VERSION = '2024-12-18.acacia';
 const TOKEN_EXPIRY_DAYS = Number(process.env.COMIC_LIBRARY_TOKEN_EXPIRY_DAYS || 14);
 const SIGNED_URL_EXPIRY_MS = 15 * 60 * 1000;
+const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY');
 const STRIPE_WEBHOOK_SECRET = defineSecret('STRIPE_WEBHOOK_SECRET');
+const RESEND_FROM = process.env.RESEND_FROM || 'hello@arcade.earth';
+const SUPPORT_EMAIL = process.env.ARCADE_EARTH_SUPPORT_EMAIL || 'hello@arcade.earth';
+const FULFILLMENT_NOTIFY_EMAIL = process.env.FULFILLMENT_NOTIFY_EMAIL || SUPPORT_EMAIL;
+const DEFAULT_SITE_BASE = 'https://arcade.earth';
+const ALLOWED_SITE_BASE_HOSTS = new Set([
+  'arcade.earth',
+  'www.arcade.earth',
+  'dev.arcade.earth',
+  'aesite-30f9e.web.app',
+  'aesite-dev.web.app',
+  'localhost:5173',
+  '127.0.0.1:5173',
+]);
 
 const PRODUCT_CONFIG = {
   'comic-digital': {
@@ -109,7 +114,11 @@ function getStripe() {
 }
 
 function sendJson(res, status, payload) {
-  res.status(status).set('Cache-Control', 'no-store').json(payload);
+  res
+    .status(status)
+    .set('Access-Control-Allow-Origin', '*')
+    .set('Cache-Control', 'no-store')
+    .json(payload);
 }
 
 function allowPost(req, res) {
@@ -131,8 +140,88 @@ function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
 }
 
+function normalizeSiteBase(value) {
+  try {
+    const url = new URL(String(value || ''));
+    const isLocal = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+    if ((!isLocal && url.protocol !== 'https:') || (isLocal && url.protocol !== 'http:')) {
+      return null;
+    }
+    if (!ALLOWED_SITE_BASE_HOSTS.has(url.host)) return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+function resolveRequestSiteBase(req) {
+  const explicitBase = normalizeSiteBase(req.body?.siteBase);
+  if (explicitBase) return explicitBase;
+
+  const originBase = normalizeSiteBase(req.get('origin'));
+  if (originBase) return originBase;
+
+  const referer = req.get('referer');
+  if (referer) {
+    try {
+      const refererUrl = new URL(referer);
+      const refererBase = normalizeSiteBase(refererUrl.origin);
+      if (refererBase) return refererBase;
+    } catch {
+      // Ignore malformed referrers and use the configured fallback.
+    }
+  }
+
+  return process.env.COMIC_SUCCESS_URL_BASE || DEFAULT_SITE_BASE;
+}
+
 function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function getResend() {
+  const apiKey = String(process.env.RESEND_API_KEY || RESEND_API_KEY.value() || '').trim();
+  if (!apiKey) return null;
+  return new Resend(apiKey);
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function formatMoney(amount, currency = 'usd') {
+  if (typeof amount !== 'number') return null;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: String(currency || 'usd').toUpperCase(),
+  }).format(amount / 100);
+}
+
+function buildLibraryUrl(token, siteBase = null) {
+  const baseUrl = normalizeSiteBase(siteBase) || process.env.ARCADE_EARTH_LIBRARY_URL_BASE || DEFAULT_SITE_BASE;
+  return `${baseUrl.replace(/\/$/, '')}/library/session?t=${encodeURIComponent(token)}`;
+}
+
+async function sendTransactionalEmail({ to, subject, html, text = null, tag = 'transactional' }) {
+  const resend = getResend();
+  if (!resend) {
+    functions.logger.info('Resend key not configured; skipping email.', { to, subject, tag });
+    return { skipped: true };
+  }
+
+  return resend.emails.send({
+    from: RESEND_FROM,
+    to,
+    subject,
+    html,
+    ...(text ? { text } : {}),
+    tags: [{ name: 'type', value: tag }],
+  });
 }
 
 function createRawToken() {
@@ -180,37 +269,226 @@ async function verifyLibraryToken(token) {
   return { tokenHash: snap.id, ...data };
 }
 
-async function sendLibraryAccessEmail(email, token) {
-  if (!sendgridReady) {
-    functions.logger.info('SendGrid key not configured; skipping Library email.', { email });
-    return;
+function renderEmailShell({ title, intro, body }) {
+  return `
+    <div style="margin:0; padding:0; background:#020203;">
+      <div style="max-width:640px; margin:0 auto; padding:28px; font-family:Inter, Arial, sans-serif; color:#f7f7f2;">
+        <p style="margin:0 0 18px; color:#9effff; font-size:12px; letter-spacing:0.08em; text-transform:uppercase;">Arcade Earth</p>
+        <h1 style="margin:0 0 16px; font-size:28px; line-height:1.15;">${escapeHtml(title)}</h1>
+        <p style="margin:0 0 24px; color:#d7d7cf; font-size:16px; line-height:1.6;">${escapeHtml(intro)}</p>
+        ${body}
+        <hr style="border:0; border-top:1px solid rgba(247,247,242,0.16); margin:28px 0;">
+        <p style="margin:0; color:#a8a89f; font-size:13px; line-height:1.6;">Need help? Reply to this email or contact <a href="mailto:${escapeHtml(SUPPORT_EMAIL)}" style="color:#9effff;">${escapeHtml(SUPPORT_EMAIL)}</a>.</p>
+      </div>
+    </div>
+  `;
+}
+
+function renderCta(href, label) {
+  return `
+    <p style="margin:26px 0;">
+      <a href="${escapeHtml(href)}" style="display:inline-block; padding:13px 18px; color:#020203; background:#f7f7f2; text-decoration:none; font-weight:800;">${escapeHtml(label)}</a>
+    </p>
+  `;
+}
+
+function renderOrderSummary({ orderId, editionName, total }) {
+  return `
+    <div style="padding:16px; border:1px solid rgba(247,247,242,0.18); margin:0 0 22px;">
+      <p style="margin:0 0 8px; color:#a8a89f; font-size:13px;">Order</p>
+      <p style="margin:0; font-size:16px; line-height:1.6;"><strong>${escapeHtml(editionName)}</strong></p>
+      <p style="margin:6px 0 0; color:#d7d7cf; font-size:14px;">${escapeHtml(orderId)}${total ? ` - ${escapeHtml(total)}` : ''}</p>
+    </div>
+  `;
+}
+
+function renderShippingAddress(shipping) {
+  const address = shipping?.address || {};
+  const lines = [
+    shipping?.name,
+    address.line1,
+    address.line2,
+    [address.city, address.state, address.postal_code].filter(Boolean).join(', '),
+    address.country,
+  ].filter(Boolean);
+
+  if (!lines.length) return '';
+
+  return `
+    <p style="margin:12px 0 0; color:#d7d7cf; font-size:14px; line-height:1.6;">
+      ${lines.map((line) => escapeHtml(line)).join('<br>')}
+    </p>
+  `;
+}
+
+function renderPurchaseConfirmationEmail({ orderId, productConfig, amountTotal, currency, shipping, libraryUrl }) {
+  const hasLibraryAccess = Boolean(libraryUrl);
+  const hasPdf = productConfig.entitlements.includes('comic-pdf-v1');
+  const hasMotion = productConfig.entitlements.includes('comic-motion-stream-v1');
+  const hasPhysical = Boolean(productConfig.requiresShipping);
+  const total = formatMoney(amountTotal, currency);
+
+  const sections = [
+    renderOrderSummary({ orderId, editionName: productConfig.name, total }),
+  ];
+
+  if (hasLibraryAccess) {
+    sections.push(`
+      <div style="margin:0 0 22px;">
+        <h2 style="margin:0 0 8px; font-size:18px;">Your Library access</h2>
+        <p style="margin:0; color:#d7d7cf; font-size:15px; line-height:1.6;">
+          Open your secure Arcade Earth Library to ${hasPdf ? 'read' : ''}${hasPdf && hasMotion ? ', ' : ''}${hasMotion ? 'watch' : ''}${hasPdf || hasMotion ? ', and download your purchased media' : 'access your purchased media'}.
+        </p>
+        ${renderCta(libraryUrl, 'Open My Library')}
+        <p style="margin:0; color:#a8a89f; font-size:13px; line-height:1.6;">This secure Library link expires in ${TOKEN_EXPIRY_DAYS} days. You can request a fresh link later using the same checkout email.</p>
+      </div>
+    `);
   }
 
-  const baseUrl = process.env.ARCADE_EARTH_LIBRARY_URL_BASE || 'https://arcade.earth';
-  const libraryUrl = `${baseUrl.replace(/\/$/, '')}/library/session?t=${encodeURIComponent(token)}`;
+  if (hasPhysical) {
+    sections.push(`
+      <div style="margin:0 0 22px;">
+        <h2 style="margin:0 0 8px; font-size:18px;">Physical edition shipping</h2>
+        <p style="margin:0; color:#d7d7cf; font-size:15px; line-height:1.6;">
+          We received your physical order. Standard shipping is handled manually and usually arrives in 5-10 business days after fulfillment.
+        </p>
+        ${renderShippingAddress(shipping)}
+      </div>
+    `);
+  }
 
-  await sgMail.send({
-    to: email,
-    from: SENDGRID_FROM,
-    subject: 'Your Arcade Earth Library is ready',
-    html: `
-      <div style="font-family: Inter, Arial, sans-serif; padding: 24px; color: #f7f7f2; background-color: #020203;">
-        <h1 style="font-size: 24px; margin-bottom: 16px;">Your comic is ready.</h1>
-        <p style="font-size: 16px; line-height: 1.6;">Thanks for supporting Arcade Earth. Open your Library to read, watch, or download your purchased media.</p>
-        <p style="margin: 28px 0;"><a href="${libraryUrl}" style="display: inline-block; padding: 12px 18px; color: #020203; background: #f7f7f2; text-decoration: none; font-weight: 700;">Visit My Library</a></p>
-        <p style="font-size: 13px; opacity: 0.72;">This secure Library link expires in ${TOKEN_EXPIRY_DAYS} days. You can request a new one from Arcade Earth later.</p>
+  return renderEmailShell({
+    title: 'Your Arcade Earth order is confirmed.',
+    intro: 'Thanks for supporting Rise of Vector. Your purchase details are below.',
+    body: sections.join(''),
+  });
+}
+
+function renderLibraryAccessEmail(libraryUrl) {
+  return renderEmailShell({
+    title: 'Your Arcade Earth Library link is ready.',
+    intro: 'Use this secure link to open the Arcade Earth Library tied to your checkout email.',
+    body: `
+      ${renderCta(libraryUrl, 'Open My Library')}
+      <p style="margin:0; color:#a8a89f; font-size:13px; line-height:1.6;">This secure Library link expires in ${TOKEN_EXPIRY_DAYS} days. You can request a new one from Arcade Earth later.</p>
+    `,
+  });
+}
+
+function renderFulfillmentEmail({ session, productConfig }) {
+  const total = formatMoney(session.amount_total, session.currency);
+  const shipping = session.shipping_details || {};
+  return renderEmailShell({
+    title: 'Physical fulfillment needed.',
+    intro: `${productConfig.name} was purchased and needs manual fulfillment.`,
+    body: `
+      ${renderOrderSummary({ orderId: session.id, editionName: productConfig.name, total })}
+      <div style="margin:0 0 22px;">
+        <h2 style="margin:0 0 8px; font-size:18px;">Ship to</h2>
+        ${renderShippingAddress(shipping) || '<p style="margin:0; color:#ff8fa3;">No shipping address found on the Stripe session.</p>'}
+      </div>
+      <p style="margin:0; color:#d7d7cf; font-size:14px; line-height:1.6;">Customer: ${escapeHtml(normalizeEmail(session.customer_details?.email || session.customer_email))}</p>
+      <p style="margin:8px 0 0; color:#d7d7cf; font-size:14px; line-height:1.6;">Stripe session: ${escapeHtml(session.id)}</p>
+    `,
+  });
+}
+
+function renderShippingNotificationEmail({ orderId, productConfig, fulfillment }) {
+  const trackingUrl = fulfillment?.trackingUrl;
+  const trackingNumber = fulfillment?.trackingNumber;
+  const carrier = fulfillment?.carrier;
+
+  return renderEmailShell({
+    title: 'Your Arcade Earth order has shipped.',
+    intro: `${productConfig?.name || 'Your physical edition'} is on the way.`,
+    body: `
+      ${renderOrderSummary({ orderId, editionName: productConfig?.name || 'Arcade Earth physical edition', total: null })}
+      <div style="margin:0 0 22px;">
+        <h2 style="margin:0 0 8px; font-size:18px;">Tracking</h2>
+        <p style="margin:0; color:#d7d7cf; font-size:15px; line-height:1.6;">
+          ${carrier ? `Carrier: ${escapeHtml(carrier)}<br>` : ''}
+          ${trackingNumber ? `Tracking number: ${escapeHtml(trackingNumber)}` : 'Tracking details were added to your order.'}
+        </p>
+        ${trackingUrl ? renderCta(trackingUrl, 'Track Shipment') : ''}
       </div>
     `,
   });
 }
 
-function getSuccessUrl() {
-  const base = process.env.COMIC_SUCCESS_URL_BASE || 'https://arcade.earth';
+function renderRefundRevocationEmail({ orderId, productConfig, reason }) {
+  return renderEmailShell({
+    title: 'Your Arcade Earth order status changed.',
+    intro: `Your ${productConfig?.name || 'Arcade Earth'} order is now marked ${reason}.`,
+    body: `
+      ${renderOrderSummary({ orderId, editionName: productConfig?.name || 'Arcade Earth order', total: null })}
+      <p style="margin:0; color:#d7d7cf; font-size:15px; line-height:1.6;">
+        Any related Library access has been updated to match this order status. If this looks wrong, contact support and include your order ID.
+      </p>
+    `,
+  });
+}
+
+async function sendLibraryAccessEmail(email, token, siteBase = null) {
+  const libraryUrl = buildLibraryUrl(token, siteBase);
+  await sendTransactionalEmail({
+    to: email,
+    subject: 'Your Arcade Earth Library link',
+    html: renderLibraryAccessEmail(libraryUrl),
+    tag: 'library-access',
+  });
+}
+
+async function sendPurchaseConfirmationEmail({ email, session, productConfig, token = null, siteBase = null }) {
+  const libraryUrl = token ? buildLibraryUrl(token, siteBase) : null;
+  await sendTransactionalEmail({
+    to: email,
+    subject: 'Your Arcade Earth order is confirmed',
+    html: renderPurchaseConfirmationEmail({
+      orderId: session.id,
+      productConfig,
+      amountTotal: session.amount_total,
+      currency: session.currency,
+      shipping: session.shipping_details,
+      libraryUrl,
+    }),
+    tag: 'purchase-confirmation',
+  });
+}
+
+async function sendInternalFulfillmentEmail({ session, productConfig }) {
+  await sendTransactionalEmail({
+    to: FULFILLMENT_NOTIFY_EMAIL,
+    subject: `Fulfill Arcade Earth order ${session.id}`,
+    html: renderFulfillmentEmail({ session, productConfig }),
+    tag: 'fulfillment',
+  });
+}
+
+async function sendShippingNotificationEmail({ email, orderId, productConfig, fulfillment }) {
+  await sendTransactionalEmail({
+    to: email,
+    subject: 'Your Arcade Earth order has shipped',
+    html: renderShippingNotificationEmail({ orderId, productConfig, fulfillment }),
+    tag: 'shipping',
+  });
+}
+
+async function sendRefundRevocationEmail({ email, orderId, productConfig, reason }) {
+  await sendTransactionalEmail({
+    to: email,
+    subject: 'Your Arcade Earth order status changed',
+    html: renderRefundRevocationEmail({ orderId, productConfig, reason }),
+    tag: 'refund-revocation',
+  });
+}
+
+function getSuccessUrl(siteBase) {
+  const base = normalizeSiteBase(siteBase) || process.env.COMIC_SUCCESS_URL_BASE || DEFAULT_SITE_BASE;
   return `${base.replace(/\/$/, '')}/comic/success?session_id={CHECKOUT_SESSION_ID}`;
 }
 
-function getCancelUrl() {
-  const base = process.env.COMIC_CANCEL_URL_BASE || 'https://arcade.earth';
+function getCancelUrl(siteBase) {
+  const base = normalizeSiteBase(siteBase) || process.env.COMIC_CANCEL_URL_BASE || DEFAULT_SITE_BASE;
   return `${base.replace(/\/$/, '')}/comic?checkout=cancelled`;
 }
 
@@ -244,10 +522,12 @@ async function writeOrderAndEntitlements(session, eventId = null) {
   const orderRef = db.collection('comicOrders').doc(session.id);
   const entitlementRef = db.collection('comicEntitlements').doc(`${session.id}_${sku}`);
   const shippingDetails = session.shipping_details || null;
+  let orderAlreadyPaid = false;
 
   await db.runTransaction(async (transaction) => {
     const orderSnap = await transaction.get(orderRef);
     if (orderSnap.exists && orderSnap.data()?.status === 'paid') {
+      orderAlreadyPaid = true;
       return;
     }
 
@@ -288,8 +568,55 @@ async function writeOrderAndEntitlements(session, eventId = null) {
     }, { merge: true });
   });
 
-  const { token } = await createLibraryToken({ email, orderId: session.id, entitlementId: entitlementRef.id });
-  await sendLibraryAccessEmail(email, token);
+  if (orderAlreadyPaid) {
+    return;
+  }
+
+  let token = null;
+  if (config.entitlements.length > 0) {
+    const tokenResult = await createLibraryToken({ email, orderId: session.id, entitlementId: entitlementRef.id });
+    token = tokenResult.token;
+  }
+
+  const emailStatus = {};
+
+  try {
+    await sendPurchaseConfirmationEmail({
+      email,
+      session,
+      productConfig: config,
+      token,
+      siteBase: session.metadata?.siteBase,
+    });
+    emailStatus.purchaseConfirmationSentAt = FieldValue.serverTimestamp();
+  } catch (error) {
+    functions.logger.error('Failed to send purchase confirmation email.', {
+      email,
+      sessionId: session.id,
+      error: error?.response?.body || error?.message || error,
+    });
+    emailStatus.purchaseConfirmationError = error?.message || String(error);
+  }
+
+  if (config.requiresShipping) {
+    try {
+      await sendInternalFulfillmentEmail({ session, productConfig: config });
+      emailStatus.fulfillmentNotificationSentAt = FieldValue.serverTimestamp();
+    } catch (error) {
+      functions.logger.error('Failed to send internal fulfillment email.', {
+        sessionId: session.id,
+        error: error?.response?.body || error?.message || error,
+      });
+      emailStatus.fulfillmentNotificationError = error?.message || String(error);
+    }
+  }
+
+  if (Object.keys(emailStatus).length) {
+    await orderRef.set({
+      emailStatus,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  }
 }
 
 export const createComicCheckoutSession = onRequest({ invoker: 'public', secrets: [STRIPE_SECRET_KEY] }, async (req, res) => {
@@ -305,15 +632,17 @@ export const createComicCheckoutSession = onRequest({ invoker: 'public', secrets
       return;
     }
 
+    const siteBase = resolveRequestSiteBase(req);
     const checkoutConfig = {
       mode: 'payment',
       line_items: [{ price: config.priceId, quantity: count }],
       customer_creation: 'always',
-      success_url: getSuccessUrl(),
-      cancel_url: getCancelUrl(),
+      success_url: getSuccessUrl(siteBase),
+      cancel_url: getCancelUrl(siteBase),
       automatic_tax: { enabled: true },
       metadata: {
         sku,
+        siteBase,
         productFamily: 'comic',
         entitlementSet: config.entitlements.join(','),
       },
@@ -340,7 +669,7 @@ export const createComicCheckoutSession = onRequest({ invoker: 'public', secrets
   }
 });
 
-export const stripeComicWebhook = onRequest({ invoker: 'public', secrets: [STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET] }, async (req, res) => {
+export const stripeComicWebhook = onRequest({ invoker: 'public', secrets: [STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, RESEND_API_KEY] }, async (req, res) => {
   if (req.method !== 'POST') {
     res.status(405).send('Method not allowed');
     return;
@@ -382,8 +711,12 @@ export const stripeComicWebhook = onRequest({ invoker: 'public', secrets: [STRIP
       if (paymentIntentId) {
         const orders = await db.collection('comicOrders').where('stripePaymentIntentId', '==', paymentIntentId).get();
         await Promise.all(orders.docs.map(async (orderDoc) => {
+          const orderData = orderDoc.data();
+          const sku = orderData.items?.[0]?.sku;
+          const config = PRODUCT_CONFIG[sku];
+          const reason = event.type === 'charge.refunded' ? 'refunded' : 'disputed';
           await orderDoc.ref.set({
-            status: event.type === 'charge.refunded' ? 'refunded' : 'disputed',
+            status: reason,
             updatedAt: FieldValue.serverTimestamp(),
           }, { merge: true });
           const entitlements = await db.collection('comicEntitlements').where('orderId', '==', orderDoc.id).get();
@@ -391,6 +724,31 @@ export const stripeComicWebhook = onRequest({ invoker: 'public', secrets: [STRIP
             status: event.type === 'charge.refunded' ? 'refunded' : 'revoked',
             updatedAt: FieldValue.serverTimestamp(),
           }, { merge: true })));
+          if (orderData.email) {
+            try {
+              await sendRefundRevocationEmail({
+                email: orderData.email,
+                orderId: orderDoc.id,
+                productConfig: config,
+                reason,
+              });
+              await orderDoc.ref.set({
+                emailStatus: {
+                  refundRevocationSentAt: FieldValue.serverTimestamp(),
+                },
+              }, { merge: true });
+            } catch (error) {
+              functions.logger.error('Failed to send refund/revocation email.', {
+                orderId: orderDoc.id,
+                error: error?.response?.body || error?.message || error,
+              });
+              await orderDoc.ref.set({
+                emailStatus: {
+                  refundRevocationError: error?.message || String(error),
+                },
+              }, { merge: true });
+            }
+          }
         }));
       }
     }
@@ -402,7 +760,7 @@ export const stripeComicWebhook = onRequest({ invoker: 'public', secrets: [STRIP
   }
 });
 
-export const resendComicAccess = onRequest({ invoker: 'public' }, async (req, res) => {
+export const resendComicAccess = onRequest({ invoker: 'public', secrets: [RESEND_API_KEY] }, async (req, res) => {
   if (!allowPost(req, res)) return;
 
   const email = normalizeEmail(req.body?.email);
@@ -425,7 +783,7 @@ export const resendComicAccess = onRequest({ invoker: 'public' }, async (req, re
         orderId: entitlement.data().orderId,
         entitlementId: entitlement.id,
       });
-      await sendLibraryAccessEmail(email, token);
+      await sendLibraryAccessEmail(email, token, resolveRequestSiteBase(req));
     }
 
     sendJson(res, 200, { ok: true });
@@ -550,6 +908,59 @@ export const createAssetAccess = onRequest({ invoker: 'public' }, async (req, re
   }
 });
 
+export const sendShippingUpdateEmail = onDocumentUpdated({
+  document: 'comicOrders/{orderId}',
+  secrets: [RESEND_API_KEY],
+}, async (event) => {
+  const before = event.data?.before?.data();
+  const after = event.data?.after?.data();
+  if (!before || !after?.email) return;
+
+  const beforeFulfillment = before.fulfillment || {};
+  const afterFulfillment = after.fulfillment || {};
+  const trackingAdded = afterFulfillment.trackingNumber &&
+    afterFulfillment.trackingNumber !== beforeFulfillment.trackingNumber;
+  const markedShipped = ['shipped', 'fulfilled'].includes(afterFulfillment.status) &&
+    afterFulfillment.status !== beforeFulfillment.status;
+  const alreadySent = Boolean(after.emailStatus?.shippingNotificationSentAt);
+
+  if ((!trackingAdded && !markedShipped) || alreadySent) {
+    return;
+  }
+
+  const sku = after.items?.[0]?.sku;
+  const productConfig = PRODUCT_CONFIG[sku];
+  if (!productConfig?.requiresShipping) {
+    return;
+  }
+
+  try {
+    await sendShippingNotificationEmail({
+      email: after.email,
+      orderId: event.params.orderId,
+      productConfig,
+      fulfillment: afterFulfillment,
+    });
+    await event.data.after.ref.set({
+      emailStatus: {
+        shippingNotificationSentAt: FieldValue.serverTimestamp(),
+      },
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  } catch (error) {
+    functions.logger.error('Failed to send shipping notification email.', {
+      orderId: event.params.orderId,
+      error: error?.response?.body || error?.message || error,
+    });
+    await event.data.after.ref.set({
+      emailStatus: {
+        shippingNotificationError: error?.message || String(error),
+      },
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  }
+});
+
 export const mirrorSignupToSheet = onDocumentCreated({
   document: 'launchSignups/{docId}',
 }, async (event) => {
@@ -578,7 +989,7 @@ export const mirrorSignupToSheet = onDocumentCreated({
 
   await sheetsClient.spreadsheets.values.append({
     spreadsheetId: process.env.GOOGLE_SHEET_ID,
-    range: 'Signups!A:G',
+    range: SIGNUP_SHEET_RANGE,
     valueInputOption: 'RAW',
     requestBody: { values },
     auth: client,
@@ -587,39 +998,34 @@ export const mirrorSignupToSheet = onDocumentCreated({
 
 export const launchWelcomeEmail = onDocumentCreated({
   document: 'launchSignups/{docId}',
+  secrets: [RESEND_API_KEY],
 }, async (event) => {
-  if (!sendgridReady) {
-    functions.logger.info('SendGrid key not configured; skipping welcome email.');
-    return;
-  }
-
   const data = event.data?.data();
   if (!data?.email) {
     functions.logger.warn('Signup document missing email; cannot send welcome message.');
     return;
   }
 
+  const html = renderEmailShell({
+    title: 'Welcome aboard Arcade Earth.',
+    intro: 'You just joined the Arcade Earth launch list.',
+    body: `
+      <p style="margin:0 0 18px; color:#d7d7cf; font-size:15px; line-height:1.6;">
+        We will send updates on Rise of Vector, Thumb War, and new Planetary Games drops.
+      </p>
+      <p style="margin:0; color:#a8a89f; font-size:13px; line-height:1.6;">The Planetary Games Crew</p>
+    `,
+  });
+
   const message = {
     to: data.email,
-    from: SENDGRID_FROM,
-    subject: 'Welcome aboard Arcade Earth 🚀',
-    html: `
-      <div style="font-family: Inter, Arial, sans-serif; text-align: center; padding: 24px; color: #f5f7ff; background-color: #040414;">
-        <h1 style="font-size: 24px; margin-bottom: 16px;">Greetings, Space Cadet!</h1>
-        <p style="font-size: 16px; line-height: 1.6; margin-bottom: 24px;">
-          You just secured your seat on the Arcade Earth launch shuttle.<br/>
-          We’ll ping you before liftoff with mission briefings, secret drops, and maybe a cheat code or two.
-        </p>
-        <p style="font-size: 16px; line-height: 1.6; margin-bottom: 24px;">
-          Until then, keep your thrusters warm, your high score higher, and your notifications turned on.
-        </p>
-        <p style="font-size: 14px; opacity: 0.75;">– The Planetary Games Crew</p>
-      </div>
-    `,
+    subject: 'Welcome aboard Arcade Earth',
+    html,
+    tag: 'launch-welcome',
   };
 
   try {
-    await sgMail.send(message);
+    await sendTransactionalEmail(message);
     functions.logger.info('Welcome email sent', { email: data.email });
   } catch (error) {
     functions.logger.error('Failed to send welcome email', {

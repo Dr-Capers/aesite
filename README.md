@@ -1,4 +1,15 @@
-notes 
+notes
+
+Deployment
+
+- Dev hosting site: `aesite-dev` (`https://aesite-dev.web.app`)
+- Prod hosting site: `aesite-30f9e` (`https://aesite-30f9e.web.app`)
+- Deploy dev: `npm run deploy:dev`
+- Deploy prod: `npm run deploy:prod`
+
+Do not use `firebase deploy --only hosting` for routine deploys. Use one of the explicit npm scripts above so the target is unambiguous.
+
+`dev.arcade.earth` still needs to be moved in Firebase Hosting custom-domain settings from `aesite-30f9e` to `aesite-dev`.
 
 Next steps for you [to get the email working]:
 

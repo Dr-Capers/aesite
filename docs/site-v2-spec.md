@@ -294,7 +294,7 @@ Important current constraints:
 
 - `index.html` is a single-page launch experience with modal routes for other products.
 - `src/main.js` initializes small UI controllers after DOM load.
-- `functions/index.js` is Node ESM and already uses Firebase Functions v2, Firestore triggers, SendGrid, and Google Sheets.
+- `functions/index.js` is Node ESM and already uses Firebase Functions v2, Firestore triggers, Resend, and Google Sheets.
 - `firebase.json` currently declares the functions runtime as `python313`, while the actual deployed function source in this repo is JavaScript. This should be fixed before adding commerce functions.
 - There is no visible customer account/auth flow on this site.
 
@@ -1056,13 +1056,13 @@ If inventory constraints appear later, add `availableQuantity`, `reservedQuantit
 
 Transactional emails:
 
-- Purchase confirmation.
-- Library access email with secure magic link.
-- Physical order confirmation.
+- Purchase confirmation with conditional Library access and/or physical shipping sections based on SKU.
+- Library access resend email with secure magic link.
+- Internal fulfillment notification for physical orders.
 - Shipping/tracking notification.
 - Refund/revocation notice, if applicable.
 
-The repo already uses SendGrid in `functions/index.js`, so commerce emails can reuse SendGrid once sender/domain setup is confirmed.
+Commerce emails use Resend from `functions/index.js`. Configure `RESEND_API_KEY`, `RESEND_FROM`, and `FULFILLMENT_NOTIFY_EMAIL` before launch.
 
 Email links should point to the Arcade Earth Library, not directly to a file.
 

@@ -1664,6 +1664,9 @@ summary:focus-visible {
 
 #app {
   min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
 }
 
 .ae-backdrop {
@@ -1704,6 +1707,10 @@ summary:focus-visible {
 .ae-footer {
   position: relative;
   z-index: 2;
+}
+
+.ae-page {
+  flex: 1 0 auto;
 }
 
 .ae-nav {
@@ -1856,35 +1863,25 @@ summary:focus-visible {
   position: relative;
   display: grid;
   place-items: center;
-  aspect-ratio: 2 / 3;
-  width: min(100%, 420px);
+  aspect-ratio: 3 / 2;
+  width: min(100%, 640px);
   justify-self: center;
-  padding: clamp(1.2rem, 4vw, 2rem);
-  border: 1px solid var(--v2-line-bright);
-  background:
-    linear-gradient(160deg, rgba(255, 36, 72, 0.24), transparent 42%),
-    linear-gradient(24deg, rgba(27, 98, 255, 0.38), rgba(2, 2, 3, 0.2)),
-    rgba(8, 9, 11, 0.9);
-  box-shadow: 0 34px 80px -48px rgba(158, 255, 255, 0.7);
-  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
 }
 
 .ae-comic-cover::before {
-  content: "";
-  position: absolute;
-  inset: 8%;
-  border: 1px solid rgba(247, 247, 242, 0.16);
-  background:
-    linear-gradient(90deg, rgba(247, 247, 242, 0.08) 1px, transparent 1px),
-    linear-gradient(rgba(247, 247, 242, 0.08) 1px, transparent 1px);
-  background-size: 46px 46px;
-  transform: rotate(-3deg);
+  display: none;
 }
 
 .ae-comic-cover img {
   position: relative;
   z-index: 1;
-  width: min(92%, 320px);
+  width: min(220%, 66vw);
+  max-width: none;
   height: auto;
   filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.55));
 }
@@ -2132,27 +2129,29 @@ summary:focus-visible {
   margin: 0 auto clamp(3rem, 7vw, 6rem);
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1px;
-  border: 1px solid var(--v2-line);
-  background: var(--v2-line);
+  gap: 1rem;
 }
 
 .ae-download-options article {
   display: grid;
   align-content: start;
-  gap: 1rem;
+  gap: 0.9rem;
   min-height: 30rem;
   padding: clamp(1.2rem, 3vw, 2rem);
-  background: rgba(8, 9, 11, 0.9);
+  border: 1px solid var(--v2-line);
+  background:
+    linear-gradient(135deg, rgba(158, 255, 255, 0.08), transparent 46%),
+    rgba(8, 9, 11, 0.9);
 }
 
 .ae-download-card__media {
   position: relative;
-  min-height: clamp(11rem, 22vw, 16rem);
-  margin-bottom: 0.4rem;
-  border: 1px solid var(--v2-line);
+  min-height: clamp(15rem, 28vw, 22rem);
+  margin-bottom: 0.65rem;
+  border: 1px solid var(--v2-line-bright);
   overflow: hidden;
   background: rgba(2, 2, 3, 0.62);
+  box-shadow: 0 28px 70px -50px rgba(158, 255, 255, 0.8);
 }
 
 .ae-download-carousel__track {
@@ -2191,6 +2190,32 @@ summary:focus-visible {
   width: min(82%, 360px);
   height: auto;
   filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.5));
+}
+
+.ae-download-slide--cover {
+  padding: 0;
+}
+
+.ae-download-slide--cover img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  object-fit: cover;
+  filter: none;
+}
+
+.ae-download-slide--cover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(145deg, rgba(2, 2, 3, 0.04), rgba(2, 2, 3, 0.28));
+}
+
+.ae-download-slide--logo img {
+  max-height: 82%;
+  object-fit: contain;
 }
 
 .ae-download-slide--placeholder {
@@ -2311,6 +2336,8 @@ summary:focus-visible {
   max-width: 36rem;
   margin: 0;
   color: var(--v2-muted);
+  font-size: clamp(1rem, 1.7vw, 1.18rem);
+  line-height: 1.35;
 }
 
 .ae-download-options .ae-button {
@@ -2452,10 +2479,54 @@ summary:focus-visible {
 
 .ae-product-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 1.2rem;
+  justify-items: center;
+  text-align: center;
+  gap: 0.65rem;
   min-height: 18rem;
   padding: clamp(1rem, 2.4vw, 1.4rem);
+}
+
+.ae-product-card__head {
+  display: grid;
+  gap: 0.25rem;
+  justify-items: center;
+}
+
+.ae-product-card__media {
+  display: grid;
+  justify-items: center;
+  width: min(100%, 22rem);
+  margin: 0;
+}
+
+.ae-product-card__media img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 18px 22px rgba(0, 0, 0, 0.42));
+}
+
+.ae-product-card__media figcaption {
+  color: var(--v2-zap);
+  font-family: var(--v2-display-font);
+  font-size: clamp(1.35rem, 3vw, 2rem);
+  line-height: 0.95;
+  text-transform: uppercase;
+}
+
+.ae-product-card__info {
+  display: grid;
+  justify-items: center;
+  max-width: 24rem;
+}
+
+.ae-product-card__description {
+  margin: 0;
+  max-width: 32ch;
+  font-size: clamp(0.95rem, 1.4vw, 1.05rem);
+  line-height: 1.45;
 }
 
 .ae-product-card--featured {
@@ -2464,35 +2535,63 @@ summary:focus-visible {
 }
 
 .ae-product-card h3 {
-  margin-top: 0.55rem;
-  font-size: clamp(2.2rem, 5vw, 3.7rem);
+  margin: 0;
+  font-size: clamp(1.75rem, 3.1vw, 2.65rem);
+  line-height: 0.95;
 }
 
 .ae-product-card p,
-.ae-product-card li,
 .ae-note {
   color: var(--v2-muted);
 }
 
-.ae-product-card ul {
-  display: grid;
-  gap: 0.55rem;
+.ae-product-card .ae-product-card__price {
+  color: var(--v2-zap);
+  font-family: var(--v2-display-font);
+  font-size: clamp(1.15rem, 2vw, 1.45rem);
+  line-height: 1;
   margin: 0;
-  padding-left: 1.1rem;
+}
+
+.ae-product-card__badge {
+  justify-self: center;
+  width: fit-content;
+  margin: 0.15rem 0 0;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid rgba(158, 255, 255, 0.28);
+  color: var(--v2-zap);
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
 }
 
 .ae-product-card .ae-button {
-  align-self: end;
+  justify-self: center;
   width: fit-content;
 }
 
+.ae-product-card .ae-button--held,
+.ae-product-card .ae-button--held:disabled {
+  cursor: default;
+  border-color: rgba(247, 247, 242, 0.18);
+  background: rgba(247, 247, 242, 0.08);
+  color: rgba(247, 247, 242, 0.62);
+  opacity: 1;
+  transform: none;
+}
+
+.ae-product-card--held .ae-product-card__media {
+  opacity: 0.82;
+}
+
 .ae-checkout-control {
-  grid-column: 1 / -1;
   display: grid;
-  gap: 0.55rem;
-  align-self: end;
-  min-height: 7.6rem;
-  align-content: end;
+  justify-items: center;
+  gap: 0.4rem;
+  align-content: start;
+  max-width: 22rem;
 }
 
 .ae-checkout-control > p {
@@ -2728,6 +2827,14 @@ summary:focus-visible {
   opacity: 0.34;
 }
 
+.ae-games-art img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .ae-games-art::after {
   content: "";
   position: absolute;
@@ -2761,10 +2868,32 @@ summary:focus-visible {
   text-align: left;
 }
 
+.ae-games-project--thumb {
+  justify-items: center;
+  gap: 0.55rem;
+  text-align: center;
+}
+
+.ae-games-project--urban {
+  justify-items: center;
+  gap: 0.55rem;
+  text-align: center;
+}
+
 .ae-games-project__logo {
   width: min(380px, 100%);
   height: auto;
   filter: drop-shadow(0 10px 0 rgba(2, 2, 3, 0.42));
+}
+
+.ae-games-project__logo--urban {
+  width: min(420px, 100%);
+  margin-block: 1.65rem 1.45rem;
+  filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.45));
+}
+
+.ae-games-project--thumb .ae-games-project__logo {
+  margin-bottom: 0;
 }
 
 .ae-games-project h2 {
@@ -2772,6 +2901,16 @@ summary:focus-visible {
   color: #ffc61f;
   font-family: var(--v2-display);
   font-size: clamp(3.4rem, 8vw, 6.4rem);
+  font-weight: 900;
+  line-height: 0.82;
+  text-transform: uppercase;
+  text-shadow: 0 5px 0 #1b62ff, 0 12px 24px rgba(0, 0, 0, 0.42);
+}
+
+.ae-games-project__placeholder-logo {
+  color: #ffc61f;
+  font-family: var(--v2-display);
+  font-size: clamp(3rem, 7vw, 5.9rem);
   font-weight: 900;
   line-height: 0.82;
   text-transform: uppercase;
@@ -2799,10 +2938,15 @@ summary:focus-visible {
   margin-top: 0.6rem;
 }
 
+.ae-games-project--thumb .ae-actions {
+  justify-content: center;
+}
+
 .ae-games-project .ae-pill {
   color: #93d7ff;
   border-color: rgba(147, 215, 255, 0.42);
   background: rgba(2, 2, 3, 0.24);
+  justify-self: center;
 }
 
 .ae-games-manifesto {
@@ -2927,6 +3071,8 @@ summary:focus-visible {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
+  flex-shrink: 0;
+  margin-top: auto;
   padding: 1.25rem clamp(1rem, 4vw, 3rem);
   border-top: 1px solid var(--v2-line);
   background: rgba(2, 2, 3, 0.72);
@@ -3007,7 +3153,11 @@ summary:focus-visible {
 
   .ae-comic-cover {
     justify-self: start;
-    width: min(360px, 76vw);
+    width: min(520px, 88vw);
+  }
+
+  .ae-comic-cover img {
+    width: min(190%, 86vw);
   }
 
   .ae-note-strip {
@@ -3089,7 +3239,11 @@ summary:focus-visible {
   }
 
   .ae-comic-cover {
-    width: min(320px, 100%);
+    width: min(420px, 100%);
+  }
+
+  .ae-comic-cover img {
+    width: min(170%, 92vw);
   }
 
   .ae-download-hero {

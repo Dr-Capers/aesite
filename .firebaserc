@@ -1,5 +1,18 @@
 {
   "projects": {
     "default": "aesite-30f9e"
-  }
+  },
+  "targets": {
+    "aesite-30f9e": {
+      "hosting": {
+        "prod": [
+          "aesite-30f9e"
+        ],
+        "dev": [
+          "aesite-dev"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

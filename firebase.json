@@ -1,43 +1,84 @@
 {
-  "hosting": {
-    "site": "aesite-30f9e",
-    "public": "dist",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "rewrites": [
-      {
-        "source": "/api/createComicCheckoutSession",
-        "function": "createComicCheckoutSession"
-      },
-      {
-        "source": "/api/stripeComicWebhook",
-        "function": "stripeComicWebhook"
-      },
-      {
-        "source": "/api/resendComicAccess",
-        "function": "resendComicAccess"
-      },
-      {
-        "source": "/api/verifyLibrarySession",
-        "function": "verifyLibrarySession"
-      },
-      {
-        "source": "/api/getLibrary",
-        "function": "getLibrary"
-      },
-      {
-        "source": "/api/createAssetAccess",
-        "function": "createAssetAccess"
-      },
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ]
-  },
+  "hosting": [
+    {
+      "target": "dev",
+      "public": "dist",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        {
+          "source": "/api/createComicCheckoutSession",
+          "function": "createComicCheckoutSession"
+        },
+        {
+          "source": "/api/stripeComicWebhook",
+          "function": "stripeComicWebhook"
+        },
+        {
+          "source": "/api/resendComicAccess",
+          "function": "resendComicAccess"
+        },
+        {
+          "source": "/api/verifyLibrarySession",
+          "function": "verifyLibrarySession"
+        },
+        {
+          "source": "/api/getLibrary",
+          "function": "getLibrary"
+        },
+        {
+          "source": "/api/createAssetAccess",
+          "function": "createAssetAccess"
+        },
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ]
+    },
+    {
+      "target": "prod",
+      "public": "dist",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        {
+          "source": "/api/createComicCheckoutSession",
+          "function": "createComicCheckoutSession"
+        },
+        {
+          "source": "/api/stripeComicWebhook",
+          "function": "stripeComicWebhook"
+        },
+        {
+          "source": "/api/resendComicAccess",
+          "function": "resendComicAccess"
+        },
+        {
+          "source": "/api/verifyLibrarySession",
+          "function": "verifyLibrarySession"
+        },
+        {
+          "source": "/api/getLibrary",
+          "function": "getLibrary"
+        },
+        {
+          "source": "/api/createAssetAccess",
+          "function": "createAssetAccess"
+        },
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ]
+    }
+  ],
   "firestore": {
     "rules": "firebase.rules",
     "indexes": "firestore.indexes.json"

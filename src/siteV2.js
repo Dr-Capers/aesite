@@ -8,39 +8,46 @@ const PRODUCTS = [
   {
     sku: 'comic-digital',
     name: 'Digital Edition',
+    title: 'Digital Edition',
     price: '$9.99',
-    stance: 'Own the comic.',
+    description: 'Read Arcade Earth: Rise of Vector as a PDF across your devices, with secure Library access whenever you need it.',
     cta: 'Buy Digital Comic',
     checkoutNote: 'Opens secure Stripe Checkout. Library access is sent after payment.',
-    includes: ['Downloadable PDF', 'Read online through your Library', 'Minor update redownloads'],
+    image: '/assets/comic%20page/digital%20edition.png',
   },
   {
     sku: 'comic-motion',
     name: 'Motion Video Comic',
+    title: 'Video Edition',
     price: '$14.99',
-    stance: 'Experience the story.',
-    cta: 'Watch Instantly',
-    checkoutNote: 'Opens secure Stripe Checkout. Watch access is sent after payment.',
-    includes: ['Browser streaming', 'Optional offline download', 'Library access by magic link'],
+    description: 'A fully voice-acted video version of the story, built for fans who want to watch the comic come alive.',
+    cta: 'Coming Soon',
+    checkoutNote: 'Video Edition purchases are temporarily on hold while we finish launch access.',
+    hold: true,
+    image: '/assets/comic%20page/motion%20video%20comic.png',
   },
   {
     sku: 'comic-physical',
     name: 'Physical Edition',
+    title: 'Physical Edition',
     price: '$29.99',
-    stance: 'Collect the world.',
-    cta: 'Collect Physical Edition',
-    checkoutNote: 'Opens secure Stripe Checkout. Shipping is added there.',
-    includes: ['Print-only standalone comic', 'US-only shipping', 'Standard Shipping available at Checkout'],
+    description: 'The printed edition of Rise of Vector for collectors who want Arcade Earth on the shelf and in their hands.',
+    cta: 'Coming Soon',
+    checkoutNote: 'Physical Edition purchases are temporarily on hold while we finalize shipping.',
+    hold: true,
+    image: '/assets/comic%20page/physical%20edition.png',
   },
   {
     sku: 'comic-ultimate-bundle',
     name: 'Ultimate Bundle',
+    title: 'Ultimate Bundle',
     price: '$44.99',
-    stance: 'Get the complete launch set.',
-    cta: 'Buy Ultimate Bundle',
-    checkoutNote: 'Opens secure Stripe Checkout. Shipping and Library access are handled there.',
+    description: 'The complete launch bundle: printed comic, digital PDF, motion comic, and bonus Library access in one order.',
+    cta: 'Coming Soon',
+    checkoutNote: 'Ultimate Bundle purchases are temporarily on hold while we finalize all included formats.',
+    hold: true,
     featured: true,
-    includes: ['Physical comic', 'Digital PDF', 'Motion video comic', 'Future bonus access marker'],
+    image: '/assets/comic%20page/ultimate%20bundle.png',
   },
 ];
 
@@ -54,14 +61,12 @@ const ROUTES = [
 
 const DOWNLOAD_MEDIA = {
   game: [
-    { type: 'image', src: '/assets/style-lab/thumb-war-logo.png', alt: 'Thumb War logo' },
-    { type: 'placeholder', eyebrow: 'Screenshot', title: 'Gameplay capture' },
-    { type: 'placeholder', eyebrow: 'Arena', title: 'Match preview' },
+    { type: 'image', src: '/assets/style-lab/thumb-war-logo-cropped.png', alt: 'Thumb War logo', fit: 'logo' },
+    { type: 'image', src: '/assets/REAL%20SUBWAY%20SCENE.png', alt: 'Thumb War subway scene', fit: 'cover' },
   ],
   comic: [
-    { type: 'placeholder', eyebrow: 'Comic art pending', title: 'Cover art' },
-    { type: 'placeholder', eyebrow: 'Comic art pending', title: 'Interior page' },
-    { type: 'placeholder', eyebrow: 'Comic art pending', title: 'Motion frame' },
+    { type: 'image', src: '/assets/style-lab/arcade-earth-rise-of-vector-logo.png', alt: 'Arcade Earth: Rise of Vector logo', fit: 'logo' },
+    { type: 'image', src: '/assets/comic%20page/downloadpageimage.png', alt: 'Arcade Earth: Rise of Vector comic art', fit: 'cover' },
   ],
 };
 
@@ -159,7 +164,7 @@ function downloadCarousel(kind, label) {
         ${slides.map((slide, index) => {
           if (slide.type === 'image') {
             return `
-              <figure class="ae-download-slide ae-download-slide--image" aria-label="${slide.alt}">
+              <figure class="ae-download-slide ae-download-slide--image ae-download-slide--${slide.fit || 'logo'}" aria-label="${slide.alt}">
                 <img src="${slide.src}" alt="${slide.alt}">
               </figure>
             `;
@@ -229,7 +234,6 @@ function downloadPage() {
   return `
     <section class="ae-download-hero">
       <div>
-        <p class="ae-eyebrow">Planetary Games access point</p>
         <h1>Let's Play.</h1>
       </div>
     </section>
@@ -238,7 +242,7 @@ function downloadPage() {
         ${downloadCarousel('game', 'Thumb War media')}
         <p class="ae-eyebrow">Mobile game</p>
         <h2>Thumb War</h2>
-        <p>Fast 1-on-1 touch duels for iOS and Android. Charge, block, and time your strikes in compact arcade rounds.</p>
+        <p>A mobile battler built for real-world competition. Face off against friends on the same screen, where quick reflexes, clever tactics, and perfect timing decide the winner.</p>
         <div class="ae-actions">
           <a class="ae-button ae-button--primary" href="${APP_STORE_URL}" target="_blank" rel="noreferrer">App Store</a>
           <a class="ae-button" href="${PLAY_STORE_URL}" target="_blank" rel="noreferrer">Google Play</a>
@@ -246,9 +250,9 @@ function downloadPage() {
       </article>
       <article class="ae-download-card ae-download-card--comic">
         ${downloadCarousel('comic', 'Rise of Vector media')}
-        <p class="ae-eyebrow">Comic line</p>
+        <p class="ae-eyebrow">Comic</p>
         <h2>Rise of Vector</h2>
-        <p>The Arcade Earth universe expands through digital, motion, physical, and bundle editions.</p>
+        <p>Dr. Capers is a game-obsessed inventor. P1 is a digital hero from a ruined future. Together, they have to turn Earth into a planet-sized video game before Vector eats every timeline left.</p>
         <a class="ae-button" href="/comic">Read More</a>
       </article>
     </section>
@@ -257,17 +261,22 @@ function downloadPage() {
 
 function productCards() {
   return PRODUCTS.map((product) => `
-    <article class="ae-product-card${product.featured ? ' ae-product-card--featured' : ''}" data-product-sku="${product.sku}">
-      <div>
+    <article class="ae-product-card${product.featured ? ' ae-product-card--featured' : ''}${product.hold ? ' ae-product-card--held' : ''}" data-product-sku="${product.sku}">
+      <header class="ae-product-card__head">
+        <h3>${product.title}</h3>
         <p class="ae-product-card__price">${product.price}</p>
-        <h3>${product.name}</h3>
-        <p>${product.stance}</p>
+        ${product.hold ? '<p class="ae-product-card__badge">Coming soon</p>' : ''}
+      </header>
+      <figure class="ae-product-card__media" aria-label="${product.name} artwork">
+        <img src="${product.image}" alt="${product.name}">
+      </figure>
+      <div class="ae-product-card__info">
+        <p class="ae-product-card__description">${product.description}</p>
       </div>
-      <ul>
-        ${product.includes.map((item) => `<li>${item}</li>`).join('')}
-      </ul>
       <div class="ae-checkout-control">
-        <button class="ae-button ${product.featured ? 'ae-button--primary' : ''}" type="button" data-checkout-sku="${product.sku}">${product.cta}</button>
+        ${product.hold
+          ? `<button class="ae-button ae-button--held" type="button" disabled aria-disabled="true">${product.cta}</button>`
+          : `<button class="ae-button ${product.featured ? 'ae-button--primary' : ''}" type="button" data-checkout-sku="${product.sku}">${product.cta}</button>`}
         <p>${product.checkoutNote}</p>
         <p class="ae-checkout-status" role="status" aria-live="polite" data-checkout-status hidden></p>
       </div>
@@ -280,14 +289,13 @@ function comicPage() {
   const cancelled = params.get('checkout') === 'cancelled';
   return `
     <section class="ae-hero ae-hero--comic">
-      <div class="ae-comic-cover" aria-label="Arcade Earth: Rise of Vector cover art placeholder">
-        <img src="/assets/style-lab/arcade-earth-rise-of-vector-logo.png" alt="Arcade Earth: Rise of Vector logo">
-        <span>Issue 01</span>
+      <div class="ae-comic-cover" aria-label="Arcade Earth: Rise of Vector cover art">
+        <img src="/assets/comic%20page/herooption2.png" alt="Arcade Earth: Rise of Vector comic cover">
       </div>
       <div class="ae-hero__copy">
         <p class="ae-eyebrow">Arcade Earth comic</p>
         <h1>Rise of Vector</h1>
-        <p>Dr. Capers is a game-obsessed inventor. P1 is a digital hero from a ruined future. Together, they have to turn Earth into a planet-sized arcade before Vector eats every timeline left.</p>
+        <p>Dr. Capers is a game-obsessed inventor. P1 is a digital hero from a ruined future. Together, they have to turn Earth into a planet-sized video game before Vector eats every timeline left.</p>
         <div class="ae-actions">
           <a class="ae-button ae-button--primary" href="#editions" data-smooth-scroll>Pick an Edition</a>
           <a class="ae-button" href="/library">Open Library</a>
@@ -321,7 +329,11 @@ function comicPage() {
       <h2>Frequently asked questions.</h2>
       <details open><summary>How do I access my digital comic later?</summary><p>Use the Arcade Earth Library link from your email, or request a new magic link from the Library access page.</p></details>
       <details><summary>Are downloads limited?</summary><p>Signed download links are short-lived, but normal customer redownloads are supported.</p></details>
+      <details><summary>How does the digital edition work on mobile?</summary><p>For the best reading experience, we recommend using a computer. Mobile browsers handle PDFs differently. If the in-page reader feels cramped, tap Download PDF from your Library. On some phones this opens the comic in the browser or system PDF viewer instead of saving a file, which usually gives a better mobile reading experience. You can request a fresh Library link later if the signed link expires.</p></details>
       <details><summary>Is the physical comic digital too?</summary><p>The standalone Physical Edition is print-only. Choose the Ultimate Bundle if you want physical, digital, and motion access together.</p></details>
+      <details><summary>Where do you ship?</summary><p>Physical Edition and Ultimate Bundle shipping is available to United States addresses only for this launch.</p></details>
+      <details><summary>How much is shipping?</summary><p>Standard shipping is a flat $6.99 USD and usually arrives in 5-10 business days after fulfillment.</p></details>
+      <details><summary>Is there a Book Two?</summary><p>Book Two is coming. Follow Planetary Games on Instagram or join the email list to get updates.</p></details>
     </section>
   `;
 }
@@ -331,20 +343,18 @@ function gamesPage() {
     <section class="ae-games-page">
       <header class="ae-games-hero">
         <div>
-          <p class="ae-eyebrow">Planetary Games</p>
           <h1>Games for the real world.</h1>
         </div>
-        <p>We make games that bring people together in the real world.</p>
       </header>
 
       <div class="ae-games-list">
         <article class="ae-games-feature ae-games-feature--thumb" id="thumb-war">
-          <figure class="ae-games-art" aria-label="Placeholder Thumb War scene art">
-            <span>Thumb War scene art</span>
+          <figure class="ae-games-art" aria-label="Thumb War subway scene art">
+            <img src="/assets/REAL%20SUBWAY%20SCENE.png" alt="Thumb War subway scene">
           </figure>
-          <div class="ae-games-project">
-            <img class="ae-games-project__logo" src="/assets/style-lab/thumb-war-logo.png" alt="Thumb War">
-            <p class="ae-games-project__tagline">A mobile battler built for real-world competition.</p>
+          <div class="ae-games-project ae-games-project--thumb">
+            <img class="ae-games-project__logo" src="/assets/style-lab/thumb-war-logo-cropped.png" alt="Thumb War">
+            <p>A mobile battler built for real-world competition.</p>
             <p>Face off against friends on the same screen, where quick reflexes, clever tactics, and perfect timing decide the winner.</p>
             <p>The world's first sport that fits in your pocket.</p>
             <div class="ae-actions">
@@ -355,14 +365,15 @@ function gamesPage() {
         </article>
 
         <article class="ae-games-feature ae-games-feature--urban">
-          <figure class="ae-games-art" aria-label="Placeholder Urban Arcade city art">
-            <span>Urban Arcade concept art</span>
+          <figure class="ae-games-art" aria-label="Urban Arcade park scene art">
+            <img src="/assets/PARK%20SCENE.png" alt="Urban Arcade park scene">
           </figure>
-          <div class="ae-games-project ae-games-project--development">
+          <div class="ae-games-project ae-games-project--urban ae-games-project--development">
             <p class="ae-pill">In development</p>
-            <h2>Urban Arcade</h2>
-            <p class="ae-games-project__tagline">Team up with your Arcadian partner and see the world through new eyes.</p>
-            <p>Turn your city into a playground of hidden discoveries, local rivalries, and epic adventures as you fight to reclaim your neighborhood.</p>
+            <img class="ae-games-project__logo ae-games-project__logo--urban" src="/assets/URBAN%20ARCADE%20LOGO.png" alt="Urban Arcade">
+            <p>Team up with your Arcadian partner and see the world through new eyes.</p>
+            <p>Turn your city into a playground of hidden discoveries, local rivalries, and epic adventures.</p>
+            <p>Fight to reclaim your neighborhood!</p>
           </div>
         </article>
       </div>
@@ -403,7 +414,6 @@ function successPage() {
 function libraryAccessPage() {
   return `
     <section class="ae-state">
-      <p class="ae-eyebrow">Arcade Earth Library</p>
       <h1>Request Library access.</h1>
       <p>Enter the email used at checkout. If purchases exist for that email, we will send Library access.</p>
       <form class="ae-form ae-form--stack" data-library-access-form>
@@ -422,7 +432,6 @@ function libraryPage() {
   if (!session?.token) {
     return `
       <section class="ae-state">
-        <p class="ae-eyebrow">Arcade Earth Library</p>
         <h1>Your Library lives here.</h1>
         <p>Use a secure email magic link to view purchased comics, motion video comics, and downloads.</p>
         <div class="ae-actions">
@@ -436,7 +445,6 @@ function libraryPage() {
   return `
     <section class="ae-section" data-library-shell>
       <div class="ae-section__head">
-        <p class="ae-eyebrow">Arcade Earth Library</p>
         <h1>Purchased</h1>
         <p data-library-email>Signed in by secure Library link.</p>
       </div>
@@ -450,7 +458,6 @@ function libraryPage() {
 function sessionPage() {
   return `
     <section class="ae-state" data-session-verifier>
-      <p class="ae-eyebrow">Arcade Earth Library</p>
       <h1>Opening your Library.</h1>
       <p data-session-message>Verifying your secure link...</p>
       <div class="ae-actions">
@@ -615,7 +622,11 @@ function initCheckout() {
       setStatus('Preparing secure Stripe Checkout. Keep this tab open; you will be redirected in a moment.');
 
       try {
-        const { url } = await postJson('/api/createComicCheckoutSession', { sku, quantity: 1 });
+        const { url } = await postJson('/api/createComicCheckoutSession', {
+          sku,
+          quantity: 1,
+          siteBase: window.location.origin,
+        });
         if (!url) {
           throw new Error('Checkout did not return a Stripe link.');
         }
