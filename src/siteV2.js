@@ -117,7 +117,9 @@ function shell(content, currentPath) {
       <video class="ae-backdrop__video" src="/assets/style-lab/planetary-games-logo-video.mp4" autoplay muted loop playsinline></video>
     </div>
     <header class="ae-nav">
-      <a class="ae-mark" href="/">Arcade Earth</a>
+      <a class="ae-mark" href="/" aria-label="Arcade Earth">
+        <img src="/assets/AELogo.png" alt="">
+      </a>
       <button class="ae-nav__toggle" type="button" aria-expanded="false" aria-controls="site-links" data-nav-toggle>Menu</button>
       <nav class="ae-nav__links" id="site-links" aria-label="Primary navigation" data-nav-links>
         ${ROUTES.map((route) => navLink(route, currentPath)).join('')}
