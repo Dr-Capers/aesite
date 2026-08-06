@@ -112,9 +112,18 @@ function navLink(route, currentPath) {
 }
 
 function shell(content, currentPath) {
+  const deferBackdrop = currentPath === '/comic';
   return `
     <div class="ae-backdrop" aria-hidden="true">
-      <video class="ae-backdrop__video" src="/assets/style-lab/planetary-games-logo-video.mp4" autoplay muted loop playsinline></video>
+      <video
+        class="ae-backdrop__video"
+        ${deferBackdrop ? 'data-src="/assets/style-lab/planetary-games-logo-video.mp4" preload="none"' : 'src="/assets/style-lab/planetary-games-logo-video.mp4"'}
+        autoplay
+        muted
+        loop
+        playsinline
+        data-backdrop-video
+      ></video>
     </div>
     <header class="ae-nav">
       <a class="ae-mark" href="/" aria-label="Arcade Earth">
@@ -292,7 +301,16 @@ function comicPage() {
   return `
     <section class="ae-hero ae-hero--comic">
       <div class="ae-comic-cover" aria-label="Arcade Earth: Rise of Vector cover art">
-        <img src="/assets/comic%20page/herooption2.png" alt="Arcade Earth: Rise of Vector comic cover">
+        <img
+          src="/assets/comic%20page/herooption2.png"
+          alt="Arcade Earth: Rise of Vector comic cover"
+          width="900"
+          height="600"
+          loading="eager"
+          decoding="async"
+          fetchpriority="high"
+          data-critical-image
+        >
       </div>
       <div class="ae-hero__copy">
         <p class="ae-eyebrow">Arcade Earth comic</p>
@@ -842,6 +860,58 @@ async function initMediaPage() {
   });
 }
 
+function initBackdropVideo() {
+  const video = document.querySelector('[data-backdrop-video]');
+  const deferredSrc = video?.dataset?.src;
+  if (!video || !deferredSrc) {
+    return;
+  }
+
+  let started = false;
+  let fallbackTimer = null;
+  const startVideo = () => {
+    if (started) {
+      return;
+    }
+    started = true;
+    if (fallbackTimer) {
+      window.clearTimeout(fallbackTimer);
+    }
+    video.src = deferredSrc;
+    video.load();
+    const playPromise = video.play();
+    if (playPromise?.catch) {
+      playPromise.catch(() => {});
+    }
+  };
+
+  const startAfterPaint = async () => {
+    const criticalImage = document.querySelector('[data-critical-image]');
+    if (criticalImage && typeof criticalImage.decode === 'function') {
+      try {
+        await criticalImage.decode();
+      } catch (error) {
+        // A completed image can still reject decode; it is safe to continue.
+      }
+    }
+    window.requestAnimationFrame(() => window.requestAnimationFrame(startVideo));
+  };
+
+  const criticalImage = document.querySelector('[data-critical-image]');
+  if (!criticalImage) {
+    startVideo();
+    return;
+  }
+
+  if (criticalImage.complete && criticalImage.naturalWidth > 0) {
+    startAfterPaint();
+  } else {
+    criticalImage.addEventListener('load', startAfterPaint, { once: true });
+    criticalImage.addEventListener('error', startVideo, { once: true });
+    fallbackTimer = window.setTimeout(startVideo, 3000);
+  }
+}
+
 export function renderSite() {
   const app = document.querySelector('#app');
   const path = normalizePath(window.location.pathname);
@@ -861,6 +931,7 @@ export function renderSite() {
   else content = notFoundPage();
 
   app.innerHTML = shell(content, path);
+  initBackdropVideo();
   initNav();
   initSmoothScrollLinks();
   initDownloadCarousels();
