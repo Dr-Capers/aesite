@@ -1874,8 +1874,8 @@ summary:focus-visible {
   position: relative;
   display: grid;
   place-items: center;
-  aspect-ratio: 3 / 2;
-  width: min(100%, 640px);
+  aspect-ratio: 1;
+  width: min(100%, 520px);
   justify-self: center;
   padding: 0;
   border: 0;
@@ -1891,7 +1891,7 @@ summary:focus-visible {
 .ae-comic-cover img {
   position: relative;
   z-index: 1;
-  width: min(220%, 66vw);
+  width: min(120%, 560px);
   max-width: none;
   height: auto;
   filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.55));
@@ -3168,7 +3168,7 @@ summary:focus-visible {
   }
 
   .ae-comic-cover img {
-    width: min(190%, 86vw);
+    width: min(110%, 560px);
   }
 
   .ae-note-strip {
@@ -3254,7 +3254,7 @@ summary:focus-visible {
   }
 
   .ae-comic-cover img {
-    width: min(170%, 92vw);
+    width: min(110%, 420px);
   }
 
   .ae-download-hero {

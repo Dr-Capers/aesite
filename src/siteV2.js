@@ -304,8 +304,8 @@ function comicPage() {
         <img
           src="/assets/comic%20page/herooption2.png"
           alt="Arcade Earth: Rise of Vector comic cover"
-          width="900"
-          height="600"
+          width="1200"
+          height="1200"
           loading="eager"
           decoding="async"
           fetchpriority="high"
