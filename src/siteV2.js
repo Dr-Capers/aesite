@@ -233,7 +233,8 @@ function homePage() {
       </div>
       <form class="ae-form" aria-label="Join the Arcade Earth list" data-signup-form>
         <label class="sr-only" for="launch-email">Email address</label>
-        <input id="launch-email" type="email" name="email" placeholder="you@example.com" required data-signup-input>
+        <input id="launch-email" type="email" name="email" placeholder="you@example.com" autocomplete="email" required data-signup-input>
+        <label class="signup-honeypot" aria-hidden="true">Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label>
         <button type="submit">Join list</button>
         <p class="signup-feedback ae-form__feedback" data-signup-feedback aria-live="polite" hidden></p>
       </form>

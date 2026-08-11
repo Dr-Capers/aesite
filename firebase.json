@@ -10,6 +10,14 @@
       ],
       "rewrites": [
         {
+          "source": "/api/submitLaunchSignup",
+          "function": "submitLaunchSignup"
+        },
+        {
+          "source": "/api/confirmLaunchSignup",
+          "function": "confirmLaunchSignup"
+        },
+        {
           "source": "/api/createComicCheckoutSession",
           "function": "createComicCheckoutSession"
         },
@@ -48,6 +56,14 @@
         "**/node_modules/**"
       ],
       "rewrites": [
+        {
+          "source": "/api/submitLaunchSignup",
+          "function": "submitLaunchSignup"
+        },
+        {
+          "source": "/api/confirmLaunchSignup",
+          "function": "confirmLaunchSignup"
+        },
         {
           "source": "/api/createComicCheckoutSession",
           "function": "createComicCheckoutSession"

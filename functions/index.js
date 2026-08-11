@@ -7,12 +7,30 @@ import crypto from 'node:crypto';
 import { google } from 'googleapis';
 import { Resend } from 'resend';
 import Stripe from 'stripe';
+import {
+  buildConfirmationToken,
+  buildSignupRateLimitIds,
+  getClientIp,
+  hashSignupEmail,
+  hashSignupIp,
+  isSuspiciousSignupTiming,
+  isValidSignupEmail,
+  normalizeSignupEmail,
+  parseConfirmationToken,
+  safeTokenHashMatches,
+  sanitizeSignupAttribution,
+} from './signupSecurity.js';
 
 admin.initializeApp();
 
 const db = admin.firestore();
 const FieldValue = admin.firestore.FieldValue;
 const Timestamp = admin.firestore.Timestamp;
+const googleCloudProject = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || 'aesite-30f9e';
+const recaptchaClient = google.recaptchaenterprise('v1');
+const recaptchaAuth = new google.auth.GoogleAuth({
+  scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+});
 
 const sheetConfigReady = Boolean(
   process.env.GOOGLE_SHEET_ID &&
@@ -40,10 +58,28 @@ const SIGNED_URL_EXPIRY_MS = 15 * 60 * 1000;
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY');
 const STRIPE_WEBHOOK_SECRET = defineSecret('STRIPE_WEBHOOK_SECRET');
+const SIGNUP_IP_HASH_SECRET = defineSecret('SIGNUP_IP_HASH_SECRET');
 const RESEND_FROM = process.env.RESEND_FROM || 'hello@arcade.earth';
 const SUPPORT_EMAIL = process.env.ARCADE_EARTH_SUPPORT_EMAIL || 'hello@arcade.earth';
 const FULFILLMENT_NOTIFY_EMAIL = process.env.FULFILLMENT_NOTIFY_EMAIL || SUPPORT_EMAIL;
 const DEFAULT_SITE_BASE = 'https://arcade.earth';
+const SIGNUP_CONFIRMATION_EXPIRY_MS = 48 * 60 * 60 * 1000;
+const SIGNUP_EMAIL_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const SIGNUP_FAILED_SEND_COOLDOWN_MS = 5 * 60 * 1000;
+const SIGNUP_IP_ATTEMPTS_PER_HOUR = 3;
+const SIGNUP_DAILY_EMAIL_BUDGET = 40;
+const RECAPTCHA_ACTION = 'launch_signup';
+const RECAPTCHA_PRODUCTION_SITE_KEY = '6LdHM4EtAAAAADWLkT76WYi26ZEMWr5Olii4JrSp';
+const RECAPTCHA_DEVELOPMENT_SITE_KEY = '6LeV7IAtAAAAACep1SwP0qAB5l9qKEJMNOlyNUPb';
+const RECAPTCHA_SITE_KEY_BY_HOSTNAME = new Map([
+  ['arcade.earth', RECAPTCHA_PRODUCTION_SITE_KEY],
+  ['www.arcade.earth', RECAPTCHA_PRODUCTION_SITE_KEY],
+  ['aesite-30f9e.web.app', RECAPTCHA_PRODUCTION_SITE_KEY],
+  ['dev.arcade.earth', RECAPTCHA_DEVELOPMENT_SITE_KEY],
+  ['aesite-dev.web.app', RECAPTCHA_DEVELOPMENT_SITE_KEY],
+  ['localhost', RECAPTCHA_DEVELOPMENT_SITE_KEY],
+  ['127.0.0.1', RECAPTCHA_DEVELOPMENT_SITE_KEY],
+]);
 const ALLOWED_SITE_BASE_HOSTS = new Set([
   'arcade.earth',
   'www.arcade.earth',
@@ -179,6 +215,111 @@ function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+class SignupRequestError extends Error {
+  constructor(status, message, code) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
+
+function resolveSignupSiteBase(req) {
+  const origin = normalizeSiteBase(req.get('origin'));
+  if (origin) return origin;
+
+  const referer = req.get('referer');
+  if (!referer) return null;
+  try {
+    return normalizeSiteBase(new URL(referer).origin);
+  } catch {
+    return null;
+  }
+}
+
+function sendSignupJson(req, res, status, payload) {
+  const siteBase = resolveSignupSiteBase(req);
+  if (siteBase) {
+    res.set('Access-Control-Allow-Origin', siteBase);
+    res.set('Vary', 'Origin');
+  }
+  res.status(status).set('Cache-Control', 'no-store').json(payload);
+}
+
+function allowSignupPost(req, res) {
+  const siteBase = resolveSignupSiteBase(req);
+  if (!siteBase) {
+    res.status(403).set('Cache-Control', 'no-store').json({ error: 'Request origin is not allowed.' });
+    return null;
+  }
+  if (req.method === 'OPTIONS') {
+    res
+      .set('Access-Control-Allow-Origin', siteBase)
+      .set('Access-Control-Allow-Methods', 'POST, OPTIONS')
+      .set('Access-Control-Allow-Headers', 'Content-Type')
+      .set('Access-Control-Max-Age', '3600')
+      .set('Vary', 'Origin')
+      .status(204)
+      .send('');
+    return null;
+  }
+  if (req.method !== 'POST') {
+    sendSignupJson(req, res, 405, { error: 'Method not allowed.' });
+    return null;
+  }
+  return siteBase;
+}
+
+async function verifyRecaptcha({ token, siteKey, expectedHostname }) {
+  const expectedSiteKey = RECAPTCHA_SITE_KEY_BY_HOSTNAME.get(expectedHostname);
+  if (!expectedSiteKey || siteKey !== expectedSiteKey) {
+    throw new SignupRequestError(400, 'Please complete the verification and try again.', 'recaptcha_site_key_mismatch');
+  }
+  if (typeof token !== 'string' || !token || token.length > 8192) {
+    throw new SignupRequestError(400, 'Please complete the verification and try again.', 'recaptcha_token_missing');
+  }
+
+  let assessment;
+  try {
+    const auth = await recaptchaAuth.getClient();
+    const response = await recaptchaClient.projects.assessments.create({
+      parent: `projects/${googleCloudProject}`,
+      requestBody: {
+        event: {
+          token,
+          siteKey,
+          expectedAction: RECAPTCHA_ACTION,
+        },
+      },
+      auth,
+    });
+    assessment = response.data;
+  } catch (error) {
+    functions.logger.error('reCAPTCHA assessment request failed.', { error: error?.message || error });
+    throw new SignupRequestError(503, 'Verification is temporarily unavailable.', 'recaptcha_unavailable');
+  }
+
+  const tokenProperties = assessment?.tokenProperties || {};
+  const score = Number(assessment?.riskAnalysis?.score ?? 0);
+  const valid = tokenProperties.valid === true &&
+    tokenProperties.action === RECAPTCHA_ACTION &&
+    tokenProperties.hostname === expectedHostname &&
+    score >= 0.5;
+  if (!valid) {
+    functions.logger.warn('reCAPTCHA rejected launch signup.', {
+      hostname: tokenProperties.hostname || null,
+      action: tokenProperties.action || null,
+      invalidReason: tokenProperties.invalidReason || null,
+      score,
+      reasons: assessment?.riskAnalysis?.reasons || [],
+    });
+    throw new SignupRequestError(400, 'Please complete the verification and try again.', 'recaptcha_rejected');
+  }
+}
+
+function timestampMillis(value) {
+  return value?.toMillis?.() || 0;
+}
+
 function getResend() {
   const apiKey = String(process.env.RESEND_API_KEY || RESEND_API_KEY.value() || '').trim();
   if (!apiKey) return null;
@@ -290,6 +431,48 @@ function renderCta(href, label) {
       <a href="${escapeHtml(href)}" style="display:inline-block; padding:13px 18px; color:#020203; background:#f7f7f2; text-decoration:none; font-weight:800;">${escapeHtml(label)}</a>
     </p>
   `;
+}
+
+function renderLaunchConfirmationEmail(confirmUrl) {
+  return renderEmailShell({
+    title: 'Confirm your Arcade Earth updates',
+    intro: 'One quick check keeps the launch list useful and protects your inbox.',
+    body: `
+      <p style="margin:0 0 18px; color:#d7d7cf; font-size:15px; line-height:1.6;">
+        Confirm that you want updates about Rise of Vector, Thumb War, and future Planetary Games releases.
+      </p>
+      ${renderCta(confirmUrl, 'Confirm My Email')}
+      <p style="margin:0; color:#a8a89f; font-size:13px; line-height:1.6;">
+        This link expires in 48 hours. If you did not request it, you can ignore this message.
+      </p>
+    `,
+  });
+}
+
+function renderSignupConfirmationPage({ confirmed }) {
+  const title = confirmed ? 'You’re on the launch list.' : 'This confirmation link is invalid or expired.';
+  const message = confirmed
+    ? 'Thanks for confirming. We’ll only send the important Arcade Earth updates.'
+    : 'Return to Arcade Earth and submit the form again to request a fresh link.';
+  return `<!doctype html>
+    <html lang="en">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="robots" content="noindex">
+        <title>${escapeHtml(title)} · Arcade Earth</title>
+        <style>
+          :root { color-scheme: dark; }
+          body { margin:0; min-height:100vh; display:grid; place-items:center; background:#020203; color:#f7f7f2; font-family:Inter,Arial,sans-serif; }
+          main { width:min(620px,calc(100% - 40px)); padding:40px; border:1px solid rgba(247,247,242,.18); background:#0b0b0e; }
+          p:first-child { color:#9effff; font-size:12px; letter-spacing:.08em; text-transform:uppercase; }
+          h1 { font-size:clamp(28px,6vw,48px); line-height:1.05; margin:18px 0; }
+          p { color:#d7d7cf; line-height:1.6; }
+          a { display:inline-block; margin-top:18px; padding:13px 18px; background:#f7f7f2; color:#020203; font-weight:800; text-decoration:none; }
+        </style>
+      </head>
+      <body><main><p>Arcade Earth</p><h1>${escapeHtml(title)}</h1><p>${escapeHtml(message)}</p><a href="/">Return to Arcade Earth</a></main></body>
+    </html>`;
 }
 
 function renderOrderSummary({ orderId, editionName, total }) {
@@ -961,6 +1144,227 @@ export const sendShippingUpdateEmail = onDocumentUpdated({
   }
 });
 
+export const submitLaunchSignup = onRequest({
+  invoker: 'public',
+  secrets: [RESEND_API_KEY, SIGNUP_IP_HASH_SECRET],
+}, async (req, res) => {
+  const siteBase = allowSignupPost(req, res);
+  if (!siteBase) return;
+
+  const genericSuccess = {
+    ok: true,
+    message: 'If this address is eligible, a confirmation link is on its way.',
+  };
+
+  try {
+    // Honeypot and timing checks are intentionally answered like valid requests.
+    // This gives basic bots no feedback about which defense caught them.
+    if (String(req.body?.website || '').trim() || isSuspiciousSignupTiming(req.body?.startedAt)) {
+      functions.logger.info('Silently discarded automated launch signup signal.');
+      sendSignupJson(req, res, 202, genericSuccess);
+      return;
+    }
+
+    const email = normalizeSignupEmail(req.body?.email);
+    if (!isValidSignupEmail(email)) {
+      throw new SignupRequestError(400, 'Please enter a valid email address.', 'invalid_email');
+    }
+
+    const ip = getClientIp(req);
+    const expectedHostname = new URL(siteBase).hostname;
+    await verifyRecaptcha({
+      token: req.body?.recaptchaToken,
+      siteKey: req.body?.recaptchaSiteKey,
+      expectedHostname,
+    });
+
+    const ipSecret = String(process.env.SIGNUP_IP_HASH_SECRET || SIGNUP_IP_HASH_SECRET.value() || '').trim();
+    if (!ipSecret) {
+      throw new SignupRequestError(503, 'Email signup is temporarily unavailable.', 'ip_hash_not_configured');
+    }
+
+    const now = new Date();
+    const nowTimestamp = Timestamp.fromDate(now);
+    const emailHash = hashSignupEmail(email);
+    const ipHash = hashSignupIp(ip, ipSecret);
+    const rateIds = buildSignupRateLimitIds({ emailHash, ipHash, now });
+    const attribution = sanitizeSignupAttribution(req.body?.attribution);
+    const rawToken = buildConfirmationToken(emailHash);
+    const confirmationTokenHash = hashSignupEmail(rawToken);
+    const pendingRef = db.collection('pendingLaunchSignups').doc(emailHash);
+    const confirmedRef = db.collection('launchSignups').doc(emailHash);
+    const ipLimitRef = db.collection('signupRateLimits').doc(rateIds.ip);
+    const emailLimitRef = db.collection('signupRateLimits').doc(rateIds.email);
+    const dailyLimitRef = db.collection('signupRateLimits').doc(rateIds.daily);
+
+    // Preserve compatibility with the two pre-hardening records whose document
+    // IDs were email addresses rather than hashes.
+    const existingByEmail = await db.collection('launchSignups').where('email', '==', email).limit(1).get();
+    if (!existingByEmail.empty) {
+      sendSignupJson(req, res, 202, genericSuccess);
+      return;
+    }
+
+    const reservation = await db.runTransaction(async (transaction) => {
+      const [confirmedSnap, ipLimitSnap, emailLimitSnap, dailyLimitSnap] = await transaction.getAll(
+        confirmedRef,
+        ipLimitRef,
+        emailLimitRef,
+        dailyLimitRef
+      );
+
+      if (confirmedSnap.exists) return { shouldSend: false, reason: 'already_confirmed' };
+
+      const ipLimit = ipLimitSnap.data() || {};
+      const ipCount = timestampMillis(ipLimit.expiresAt) > now.getTime() ? Number(ipLimit.count || 0) : 0;
+      if (ipCount >= SIGNUP_IP_ATTEMPTS_PER_HOUR) {
+        throw new SignupRequestError(429, 'Too many signup attempts. Please try again later.', 'ip_rate_limit');
+      }
+
+      const emailLimit = emailLimitSnap.data() || {};
+      if (timestampMillis(emailLimit.nextAllowedAt) > now.getTime()) {
+        transaction.set(ipLimitRef, {
+          kind: 'ip-hour',
+          count: ipCount + 1,
+          updatedAt: nowTimestamp,
+          expiresAt: Timestamp.fromMillis(now.getTime() + 2 * 60 * 60 * 1000),
+        });
+        return { shouldSend: false, reason: 'email_cooldown' };
+      }
+
+      const dailyCount = Number(dailyLimitSnap.data()?.count || 0);
+      if (dailyCount >= SIGNUP_DAILY_EMAIL_BUDGET) {
+        throw new SignupRequestError(503, 'Email signup has reached today’s limit. Please try again tomorrow.', 'daily_budget');
+      }
+
+      transaction.set(ipLimitRef, {
+        kind: 'ip-hour',
+        count: ipCount + 1,
+        updatedAt: nowTimestamp,
+        expiresAt: Timestamp.fromMillis(now.getTime() + 2 * 60 * 60 * 1000),
+      });
+      transaction.set(emailLimitRef, {
+        kind: 'email',
+        updatedAt: nowTimestamp,
+        nextAllowedAt: Timestamp.fromMillis(now.getTime() + SIGNUP_FAILED_SEND_COOLDOWN_MS),
+        expiresAt: Timestamp.fromMillis(now.getTime() + SIGNUP_EMAIL_COOLDOWN_MS + 24 * 60 * 60 * 1000),
+      });
+      transaction.set(dailyLimitRef, {
+        kind: 'daily-budget',
+        count: dailyCount + 1,
+        updatedAt: nowTimestamp,
+        expiresAt: Timestamp.fromMillis(now.getTime() + 3 * 24 * 60 * 60 * 1000),
+      });
+      transaction.set(pendingRef, {
+        email,
+        emailHash,
+        confirmationTokenHash,
+        requestedAt: nowTimestamp,
+        expiresAt: Timestamp.fromMillis(now.getTime() + SIGNUP_CONFIRMATION_EXPIRY_MS),
+        ipHash,
+        status: 'reserved',
+        consentVersion: 'launch-list-v1',
+        ...attribution,
+      });
+      return { shouldSend: true };
+    });
+
+    if (!reservation.shouldSend) {
+      sendSignupJson(req, res, 202, genericSuccess);
+      return;
+    }
+
+    const confirmUrl = `${siteBase.replace(/\/$/, '')}/api/confirmLaunchSignup?token=${encodeURIComponent(rawToken)}`;
+    try {
+      const sendResult = await sendTransactionalEmail({
+        to: email,
+        subject: 'Confirm your Arcade Earth updates',
+        html: renderLaunchConfirmationEmail(confirmUrl),
+        text: `Confirm your Arcade Earth updates: ${confirmUrl}\n\nThis link expires in 48 hours.`,
+        tag: 'launch-confirmation',
+      });
+      if (sendResult?.skipped || sendResult?.error) {
+        throw new Error(sendResult?.error?.message || 'Resend is not configured.');
+      }
+      await Promise.all([
+        pendingRef.set({ status: 'sent', lastConfirmationSentAt: FieldValue.serverTimestamp() }, { merge: true }),
+        emailLimitRef.set({
+          updatedAt: FieldValue.serverTimestamp(),
+          nextAllowedAt: Timestamp.fromMillis(now.getTime() + SIGNUP_EMAIL_COOLDOWN_MS),
+        }, { merge: true }),
+      ]);
+    } catch (error) {
+      functions.logger.error('Failed to send launch confirmation email.', {
+        emailHash,
+        error: error?.response?.body || error?.message || error,
+      });
+      await pendingRef.set({ status: 'send_failed', sendFailedAt: FieldValue.serverTimestamp() }, { merge: true });
+      throw new SignupRequestError(503, 'Email signup is temporarily unavailable. Please try again later.', 'email_send_failed');
+    }
+
+    sendSignupJson(req, res, 202, genericSuccess);
+  } catch (error) {
+    const status = error instanceof SignupRequestError ? error.status : 500;
+    const message = error instanceof SignupRequestError ? error.message : 'Email signup is temporarily unavailable.';
+    if (!(error instanceof SignupRequestError)) {
+      functions.logger.error('Launch signup failed.', { error: error?.message || error });
+    }
+    sendSignupJson(req, res, status, { error: message });
+  }
+});
+
+export const confirmLaunchSignup = onRequest({ invoker: 'public' }, async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (req.method !== 'GET') {
+    res.status(405).set('Allow', 'GET').send('Method not allowed.');
+    return;
+  }
+
+  const parsed = parseConfirmationToken(req.query?.token);
+  if (!parsed) {
+    res.status(400).type('html').send(renderSignupConfirmationPage({ confirmed: false }));
+    return;
+  }
+
+  try {
+    const confirmed = await db.runTransaction(async (transaction) => {
+      const pendingRef = db.collection('pendingLaunchSignups').doc(parsed.emailHash);
+      const launchRef = db.collection('launchSignups').doc(parsed.emailHash);
+      const [pendingSnap, launchSnap] = await transaction.getAll(pendingRef, launchRef);
+      if (launchSnap.exists || !pendingSnap.exists) return false;
+
+      const pending = pendingSnap.data();
+      const expired = timestampMillis(pending.expiresAt) <= Date.now();
+      if (expired || pending.status !== 'sent' || !safeTokenHashMatches(parsed.token, pending.confirmationTokenHash)) {
+        return false;
+      }
+
+      transaction.create(launchRef, {
+        email: pending.email,
+        submittedAt: pending.requestedAt || FieldValue.serverTimestamp(),
+        confirmedAt: FieldValue.serverTimestamp(),
+        locale: pending.locale || null,
+        referrer: pending.referrer || null,
+        sourceUrl: pending.sourceUrl || null,
+        utm: pending.utm || null,
+        deviceType: null,
+        consentVersion: pending.consentVersion || 'launch-list-v1',
+        status: 'subscribed',
+      });
+      transaction.delete(pendingRef);
+      return true;
+    });
+
+    res.status(confirmed ? 200 : 400).type('html').send(renderSignupConfirmationPage({ confirmed }));
+  } catch (error) {
+    functions.logger.error('Launch signup confirmation failed.', {
+      emailHash: parsed.emailHash,
+      error: error?.message || error,
+    });
+    res.status(500).type('html').send(renderSignupConfirmationPage({ confirmed: false }));
+  }
+});
+
 export const mirrorSignupToSheet = onDocumentCreated({
   document: 'launchSignups/{docId}',
 }, async (event) => {
@@ -994,43 +1398,4 @@ export const mirrorSignupToSheet = onDocumentCreated({
     requestBody: { values },
     auth: client,
   });
-});
-
-export const launchWelcomeEmail = onDocumentCreated({
-  document: 'launchSignups/{docId}',
-  secrets: [RESEND_API_KEY],
-}, async (event) => {
-  const data = event.data?.data();
-  if (!data?.email) {
-    functions.logger.warn('Signup document missing email; cannot send welcome message.');
-    return;
-  }
-
-  const html = renderEmailShell({
-    title: 'Welcome aboard Arcade Earth.',
-    intro: 'You just joined the Arcade Earth launch list.',
-    body: `
-      <p style="margin:0 0 18px; color:#d7d7cf; font-size:15px; line-height:1.6;">
-        We will send updates on Rise of Vector, Thumb War, and new Planetary Games drops.
-      </p>
-      <p style="margin:0; color:#a8a89f; font-size:13px; line-height:1.6;">The Planetary Games Crew</p>
-    `,
-  });
-
-  const message = {
-    to: data.email,
-    subject: 'Welcome aboard Arcade Earth',
-    html,
-    tag: 'launch-welcome',
-  };
-
-  try {
-    await sendTransactionalEmail(message);
-    functions.logger.info('Welcome email sent', { email: data.email });
-  } catch (error) {
-    functions.logger.error('Failed to send welcome email', {
-      email: data.email,
-      error: error?.response?.body || error,
-    });
-  }
 });

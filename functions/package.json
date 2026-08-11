@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "node --test signupSecurity.test.js"
   },
   "dependencies": {
     "firebase-admin": "^12.6.0",
