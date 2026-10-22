@@ -53,10 +53,9 @@ const PRODUCTS = [
 ];
 
 const ROUTES = [
-  { label: 'Home', href: '/' },
-  { label: 'Comic', href: '/comic' },
   { label: 'Games', href: '/games' },
-  { label: 'Library', href: '/library' },
+  { label: 'Comic', href: '/comic' },
+  { label: 'Home', href: '/' },
   { label: 'Community', href: DISCORD_URL, external: true },
 ];
 
@@ -142,6 +141,7 @@ function shell(content, currentPath) {
         <span>Turning screentime into face time :)</span>
       </div>
       <nav aria-label="Footer links">
+        ${navLink({ label: 'Library', href: '/library' }, currentPath)}
         <a href="${INSTAGRAM_URL}" target="_blank" rel="noreferrer">Instagram</a>
         <a href="${DISCORD_URL}" target="_blank" rel="noreferrer">Discord</a>
         <a href="mailto:hello@arcade.earth">Support</a>
@@ -531,7 +531,7 @@ function notFoundPage() {
     <section class="ae-state">
       <p class="ae-eyebrow">Route unavailable</p>
       <h1>That page is not in the current build.</h1>
-      <p>Explore the comic, games, or Library from the main navigation.</p>
+      <p>Explore games and the comic from the main navigation, or find your Library in the footer.</p>
       <a class="ae-button ae-button--primary" href="/">Go Home</a>
     </section>
   `;
