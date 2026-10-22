@@ -53,9 +53,9 @@ const PRODUCTS = [
 ];
 
 const ROUTES = [
+  { label: 'Home', href: '/' },
   { label: 'Games', href: '/games' },
   { label: 'Comic', href: '/comic' },
-  { label: 'Home', href: '/' },
   { label: 'Community', href: DISCORD_URL, external: true },
 ];
 
