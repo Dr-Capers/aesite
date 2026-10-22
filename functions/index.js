@@ -7,6 +7,7 @@ import crypto from 'node:crypto';
 import { google } from 'googleapis';
 import { Resend } from 'resend';
 import Stripe from 'stripe';
+import { validateComicShipping } from './comicShipping.js';
 import {
   buildConfirmationToken,
   buildSignupRateLimitIds,
@@ -104,6 +105,7 @@ const PRODUCT_CONFIG = {
     priceId: process.env.STRIPE_COMIC_MOTION_PRICE_ID || 'price_1TtvNzE6KbLJmYKbVET9MoGk',
     entitlements: ['comic-motion-stream-v1', 'comic-motion-download-v1'],
     fulfillmentType: 'digital',
+    hold: true,
   },
   'comic-physical': {
     name: 'Physical Edition',
@@ -119,6 +121,7 @@ const PRODUCT_CONFIG = {
     priceId: process.env.STRIPE_COMIC_ULTIMATE_PRICE_ID || 'price_1TtvazE6KbLJmYKbZXABu2g0',
     entitlements: ['comic-pdf-v1', 'comic-motion-stream-v1', 'comic-motion-download-v1', 'comic-bonus-marker-v1'],
     fulfillmentType: 'bundle',
+    hold: true,
     requiresShipping: true,
   },
 };
@@ -689,6 +692,7 @@ function publicOrderItem(session, sku, config) {
 }
 
 async function writeOrderAndEntitlements(session, eventId = null) {
+  if (session.payment_status !== 'paid') return;
   const sku = session.metadata?.sku;
   const config = PRODUCT_CONFIG[sku];
   if (!config) {
@@ -704,6 +708,15 @@ async function writeOrderAndEntitlements(session, eventId = null) {
 
   const orderRef = db.collection('comicOrders').doc(session.id);
   const entitlementRef = db.collection('comicEntitlements').doc(`${session.id}_${sku}`);
+  // Preserve the address validated before payment, independently of billing details.
+  // Older sessions collected shipping in Checkout itself.
+  if (config.requiresShipping && session.metadata?.shipping_name) {
+    session.shipping_details = validateComicShipping({
+      name: session.metadata.shipping_name,
+      address: Object.fromEntries(['line1', 'line2', 'city', 'state', 'postal_code', 'country']
+        .map((key) => [key, session.metadata[`shipping_${key}`]])),
+    });
+  }
   const shippingDetails = session.shipping_details || null;
   let orderAlreadyPaid = false;
 
@@ -806,21 +819,32 @@ export const createComicCheckoutSession = onRequest({ invoker: 'public', secrets
   if (!allowPost(req, res)) return;
 
   try {
-    const { sku, quantity = 1 } = req.body || {};
+    const { sku, quantity = 1, shipping } = req.body || {};
     const config = PRODUCT_CONFIG[sku];
     const count = Number(quantity);
 
-    if (!config || !Number.isInteger(count) || count !== 1) {
+    if (!config || config.hold || !Number.isInteger(count) || count !== 1) {
       sendJson(res, 400, { error: 'Choose a valid Arcade Earth edition.' });
       return;
     }
 
+    let validatedShipping;
+    if (config.requiresShipping) {
+      try {
+        validatedShipping = validateComicShipping(shipping);
+      } catch (error) {
+        sendJson(res, 400, { error: error.message });
+        return;
+      }
+    }
+
+    const stripe = getStripe();
     const siteBase = resolveRequestSiteBase(req);
     const checkoutConfig = {
       mode: 'payment',
       line_items: [{ price: config.priceId, quantity: count }],
       customer_creation: 'always',
-      success_url: getSuccessUrl(siteBase),
+      success_url: getSuccessUrl(siteBase) + (sku === 'comic-physical' ? '&edition=physical' : ''),
       cancel_url: getCancelUrl(siteBase),
       automatic_tax: { enabled: true },
       metadata: {
@@ -832,15 +856,22 @@ export const createComicCheckoutSession = onRequest({ invoker: 'public', secrets
     };
 
     if (config.requiresShipping) {
-      checkoutConfig.shipping_address_collection = {
-        allowed_countries: (process.env.COMIC_ALLOWED_SHIPPING_COUNTRIES || 'US').split(',').map((country) => country.trim()).filter(Boolean),
-      };
+      // Do not collect an editable shipping address in hosted Checkout: it only
+      // restricts countries. Use the server-validated address for tax and fulfillment.
+      const customer = await stripe.customers.create({ shipping: validatedShipping });
+      delete checkoutConfig.customer_creation;
+      checkoutConfig.customer = customer.id;
+      checkoutConfig.metadata.shipping_name = validatedShipping.name;
+      for (const [key, value] of Object.entries(validatedShipping.address)) {
+        checkoutConfig.metadata[`shipping_${key}`] = value;
+      }
+      checkoutConfig.custom_text = { submit: { message: 'Shipping to the address you entered on arcade.earth. To change it, return to the store before paying.' } };
       checkoutConfig.shipping_options = [{
         shipping_rate: process.env.STRIPE_COMIC_SHIPPING_RATE_ID || 'shr_1TtwPpE6KbLJmYKbqxRpYnQj',
       }];
     }
 
-    const session = await getStripe().checkout.sessions.create(checkoutConfig);
+    const session = await stripe.checkout.sessions.create(checkoutConfig);
     sendJson(res, 200, { url: session.url });
   } catch (error) {
     functions.logger.error('Failed to create comic checkout session.', {

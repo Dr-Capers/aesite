@@ -3386,3 +3386,28 @@ summary:focus-visible {
     display: none;
   }
 }
+
+.ae-shipping-dialog {
+  width: min(560px, calc(100% - 2rem));
+  max-height: calc(100dvh - 2rem);
+  padding: clamp(1rem, 4vw, 2rem);
+  color: var(--v2-text);
+  background: #111118;
+  border: 1px solid var(--v2-line);
+  border-radius: 16px;
+}
+.ae-shipping-dialog::backdrop { background: rgba(0, 0, 0, 0.8); }
+.ae-shipping-form { display: grid; gap: 1rem; }
+.ae-shipping-form label { display: grid; gap: 0.35rem; }
+.ae-shipping-form input, .ae-shipping-form select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.65rem;
+  color: var(--v2-text);
+  background: #08080c;
+  border: 1px solid var(--v2-line);
+  border-radius: 4px;
+  font: inherit;
+}
+.ae-shipping-form h2 { font-size: clamp(1.6rem, 4vw, 2rem); line-height: 1.1; margin: 0; }
+.ae-shipping-form p { margin: 0; }

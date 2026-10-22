@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "lint": "eslint .",
-    "test": "node --test signupSecurity.test.js"
+    "test": "node --test *.test.js"
   },
   "dependencies": {
     "firebase-admin": "^12.6.0",

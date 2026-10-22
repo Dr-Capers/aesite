@@ -1,3 +1,5 @@
+import { SHIPPING_STATES, validateComicShipping } from '../functions/comicShipping.js';
+
 const DISCORD_URL = 'https://discord.gg/vhmaXxQQ3b';
 const INSTAGRAM_URL = 'https://www.instagram.com/planetarygames_/';
 const APP_STORE_URL = 'https://apps.apple.com/us/app/thumb-war/id6476893306';
@@ -32,9 +34,8 @@ const PRODUCTS = [
     title: 'Physical Edition',
     price: '$29.99',
     description: 'The printed edition of Rise of Vector for collectors who want Arcade Earth on the shelf and in their hands.',
-    cta: 'Coming Soon',
-    checkoutNote: 'Physical Edition purchases are temporarily on hold while we finalize shipping.',
-    hold: true,
+    cta: 'Buy Physical Comic',
+    checkoutNote: 'In stock and ready to ship. $6.99 shipping to the lower 48 states and DC.',
     image: '/assets/comic%20page/physical%20edition.png',
   },
   {
@@ -117,7 +118,7 @@ function shell(content, currentPath) {
     <div class="ae-backdrop" aria-hidden="true">
       <video
         class="ae-backdrop__video"
-        ${deferBackdrop ? 'data-src="/assets/style-lab/planetary-games-logo-video.mp4" preload="none"' : 'src="/assets/style-lab/planetary-games-logo-video.mp4"'}
+        ${deferBackdrop ? 'data-src="/assets/style-lab/planetary-games-logo-video-20s.mp4" preload="none"' : 'src="/assets/style-lab/planetary-games-logo-video-20s.mp4"'}
         autoplay
         muted
         loop
@@ -337,11 +338,26 @@ function comicPage() {
       <div class="ae-checkout-guide" aria-label="Checkout steps">
         <span><strong>1</strong> Pick an edition</span>
         <span><strong>2</strong> Pay securely on Stripe</span>
-        <span><strong>3</strong> Open your Library email</span>
+        <span><strong>3</strong> Receive your order confirmation</span>
       </div>
       <div class="ae-products">${productCards()}</div>
+      <dialog class="ae-shipping-dialog" data-shipping-dialog aria-labelledby="shipping-title">
+        <form class="ae-shipping-form" data-shipping-form>
+          <h2 id="shipping-title">Where should we ship your comic?</h2>
+          <p>Physical Edition: $29.99 + $6.99 shipping, plus applicable tax. Ships to the lower 48 states and DC only.</p>
+          <label>Full name<input name="name" autocomplete="shipping name" maxlength="100" required></label>
+          <label>Street address<input name="line1" autocomplete="shipping address-line1" maxlength="100" required></label>
+          <label>Apartment, suite, etc. (optional)<input name="line2" autocomplete="shipping address-line2" maxlength="100"></label>
+          <label>City<input name="city" autocomplete="shipping address-level2" maxlength="100" required></label>
+          <label>State<select name="state" autocomplete="shipping address-level1" required><option value="">Choose a state</option>${SHIPPING_STATES.map(state => `<option value="${state}">${state}</option>`).join('')}</select></label>
+          <label>ZIP code<input name="postal_code" autocomplete="shipping postal-code" inputmode="numeric" pattern="[0-9]{5}(-[0-9]{4})?" maxlength="10" required></label>
+          <p>Check your address before continuing. To change it after opening Stripe, return here before paying.</p>
+          <p role="alert" data-shipping-error hidden></p>
+          <div class="ae-actions"><button class="ae-button ae-button--primary" type="submit">Continue to payment</button><button class="ae-button" type="button" data-shipping-cancel>Cancel</button></div>
+        </form>
+      </dialog>
       <div class="ae-note-strip">
-        <p>Physical Edition and Ultimate Bundle shipping is available to United States addresses only.</p>
+        <p>The Physical Edition is in stock. Shipping is available to the lower 48 US states and Washington, DC only.</p>
         <p>Standard Shipping is $6.99 and usually arrives in 5-10 business days after fulfillment.</p>
         <p>For access problems, damaged shipments, or fulfillment mistakes, contact hello@arcade.earth.</p>
       </div>
@@ -351,8 +367,8 @@ function comicPage() {
       <details open><summary>How do I access my digital comic later?</summary><p>Use the Arcade Earth Library link from your email, or request a new magic link from the Library access page.</p></details>
       <details><summary>Are downloads limited?</summary><p>Signed download links are short-lived, but normal customer redownloads are supported.</p></details>
       <details><summary>How does the digital edition work on mobile?</summary><p>For the best reading experience, we recommend using a computer. Mobile browsers handle PDFs differently. If the in-page reader feels cramped, tap Download PDF from your Library. On some phones this opens the comic in the browser or system PDF viewer instead of saving a file, which usually gives a better mobile reading experience. You can request a fresh Library link later if the signed link expires.</p></details>
-      <details><summary>Is the physical comic digital too?</summary><p>The standalone Physical Edition is print-only. Choose the Ultimate Bundle if you want physical, digital, and motion access together.</p></details>
-      <details><summary>Where do you ship?</summary><p>Physical Edition and Ultimate Bundle shipping is available to United States addresses only for this launch.</p></details>
+      <details><summary>Is the physical comic digital too?</summary><p>The standalone Physical Edition is print-only. The Digital Edition is sold separately. The Ultimate Bundle is coming soon.</p></details>
+      <details><summary>Where do you ship?</summary><p>We currently ship to the lower 48 US states and Washington, DC. Alaska, Hawaii, US territories, military addresses, and international destinations are not supported yet.</p></details>
       <details><summary>How much is shipping?</summary><p>Standard shipping is a flat $6.99 USD and usually arrives in 5-10 business days after fulfillment.</p></details>
       <details><summary>Is there a Book Two?</summary><p>Book Two is coming. Follow Planetary Games on Instagram or join the email list to get updates.</p></details>
     </section>
@@ -386,8 +402,8 @@ function gamesPage() {
         </article>
 
         <article class="ae-games-feature ae-games-feature--urban">
-          <figure class="ae-games-art" aria-label="Urban Arcade park scene art">
-            <img src="/assets/PARK%20SCENE.png" alt="Urban Arcade park scene">
+          <figure class="ae-games-art" aria-label="Urban Arcade key art">
+            <img src="/assets/urban-arcade-keyart.webp" alt="Urban Arcade neon city with floating arcade platforms and an Arcadian partner">
           </figure>
           <div class="ae-games-project ae-games-project--urban ae-games-project--development">
             <p class="ae-pill">In development</p>
@@ -411,10 +427,13 @@ function successPage() {
   const params = new URLSearchParams(window.location.search);
   const sessionId = params.get('session_id');
   const cancelled = params.get('checkout') === 'cancelled';
-  const title = cancelled ? 'Checkout cancelled.' : sessionId ? 'Payment received.' : 'Order confirmation pending.';
+  const physical = params.get('edition') === 'physical';
+  const title = cancelled ? 'Checkout cancelled.' : sessionId ? 'Thank you for your order.' : 'Order confirmation pending.';
   const message = cancelled
     ? 'No payment was completed and no charge was made. Return to the comic page to pick an edition.'
-    : sessionId
+    : physical
+      ? 'After your payment is confirmed, we will email your order confirmation and shipping details. Your Physical Edition is print-only.'
+      : sessionId
       ? 'Stripe sent you back after payment. We are creating your order and Library access now; your Library email should arrive shortly.'
       : 'If you completed checkout, your Library email should arrive shortly. You can also request a fresh Library link using the checkout email.';
   return `
@@ -422,10 +441,9 @@ function successPage() {
       <p class="ae-eyebrow">Checkout</p>
       <h1>${title}</h1>
       <p data-success-message>${message}</p>
-      ${sessionId && !cancelled ? '<p class="ae-muted">Keep this page handy until your email arrives. If it does not show up after a few minutes, request a Library link below using the same email you used at checkout.</p>' : ''}
+      ${sessionId && !cancelled && !physical ? '<p class="ae-muted">Keep this page handy until your email arrives. If it does not show up after a few minutes, request a Library link below using the same email you used at checkout.</p>' : ''}
       <div class="ae-actions">
-        <a class="ae-button ae-button--primary" href="/library">Open Library</a>
-        <a class="ae-button" href="/library/access">Send Library Email</a>
+        ${physical ? '<a class="ae-button" href="mailto:hello@arcade.earth">Contact Support</a>' : '<a class="ae-button ae-button--primary" href="/library">Open Library</a><a class="ae-button" href="/library/access">Send Library Email</a>'}
         <a class="ae-button" href="/comic">Back to Comic</a>
       </div>
     </section>
@@ -619,11 +637,45 @@ function initDownloadCarousels() {
   });
 }
 
+function requestShippingAddress() {
+  const dialog = document.querySelector('[data-shipping-dialog]');
+  const form = dialog.querySelector('form');
+  return new Promise((resolve) => {
+    let shipping = null;
+    const submit = (event) => {
+      event.preventDefault();
+      const fields = Object.fromEntries(new FormData(form));
+      const { name, ...address } = fields;
+      try {
+        shipping = validateComicShipping({ name, address: { ...address, country: 'US' } });
+        dialog.close();
+      } catch (error) {
+        const feedback = form.querySelector('[data-shipping-error]');
+        feedback.hidden = false;
+        feedback.textContent = error.message;
+      }
+    };
+    const cancel = () => dialog.close();
+    const cancelButton = dialog.querySelector('[data-shipping-cancel]');
+    form.addEventListener('submit', submit);
+    cancelButton.addEventListener('click', cancel);
+    dialog.addEventListener('close', () => {
+      form.removeEventListener('submit', submit);
+      cancelButton.removeEventListener('click', cancel);
+      resolve(shipping);
+    }, { once: true });
+    form.querySelector('[data-shipping-error]').hidden = true;
+    dialog.showModal();
+  });
+}
+
 function initCheckout() {
   const checkoutButtons = Array.from(document.querySelectorAll('[data-checkout-sku]'));
   checkoutButtons.forEach((button) => {
     button.addEventListener('click', async () => {
       const sku = button.getAttribute('data-checkout-sku');
+      const shipping = sku === 'comic-physical' ? await requestShippingAddress() : undefined;
+      if (sku === 'comic-physical' && !shipping) return;
       const original = button.textContent;
       const card = button.closest('[data-product-sku]');
       const status = card?.querySelector('[data-checkout-status]');
@@ -646,12 +698,13 @@ function initCheckout() {
         const { url } = await postJson('/api/createComicCheckoutSession', {
           sku,
           quantity: 1,
+          shipping,
           siteBase: window.location.origin,
         });
         if (!url) {
           throw new Error('Checkout did not return a Stripe link.');
         }
-        setStatus('Redirecting to Stripe Checkout. Complete payment there, then return here for Library access.', 'success');
+        setStatus('Redirecting to Stripe Checkout. Complete payment there to receive your order confirmation.', 'success');
         button.textContent = 'Redirecting...';
         window.location.assign(url);
       } catch (error) {
