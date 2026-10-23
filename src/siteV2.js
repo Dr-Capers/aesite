@@ -71,7 +71,7 @@ const DOWNLOAD_MEDIA = {
 };
 
 const routeMeta = {
-  '/': ['Arcade Earth | Planetary Games', 'Explore Arcade Earth comics, real-world games, community, and your Library.'],
+  '/': ['THUMB-WAR | Planetary Games', 'Games that turn screen time into face time. Play THUMB-WAR, the same-screen battler from Planetary Games.'],
   '/download': ['Arcade Earth Download Hub', 'Play Thumb War or read more about Arcade Earth: Rise of Vector.'],
   '/comic': ['Arcade Earth: Rise of Vector | Comic', 'Buy Arcade Earth: Rise of Vector digital, motion, physical, and bundle editions.'],
   '/games': ['Arcade Earth Games', 'Download Thumb War and explore future Arcade Earth games.'],
@@ -114,7 +114,7 @@ function navLink(route, currentPath) {
 function shell(content, currentPath) {
   const deferBackdrop = currentPath === '/comic';
   return `
-    <div class="ae-backdrop" aria-hidden="true">
+    ${currentPath === "/" ? '' : `<div class="ae-backdrop" aria-hidden="true">
       <video
         class="ae-backdrop__video"
         ${deferBackdrop ? 'data-src="/assets/style-lab/planetary-games-logo-video-20s.mp4" preload="none"' : 'src="/assets/style-lab/planetary-games-logo-video-20s.mp4"'}
@@ -124,21 +124,23 @@ function shell(content, currentPath) {
         playsinline
         data-backdrop-video
       ></video>
-    </div>
+    </div>`}
     <header class="ae-nav">
-      <a class="ae-mark" href="/" aria-label="Arcade Earth">
-        <img src="/assets/AELogo.png" alt="">
-      </a>
+      <div class="pg-brand">
+        ${currentPath === '/' ? characterMarkup() : ''}
+        <a class="pg-wordmark" href="/" aria-label="Planetary Games home"><img src="/assets/planetary-games-logo-white.svg" alt="Planetary Games" width="1000" height="196"></a>
+      </div>
       <button class="ae-nav__toggle" type="button" aria-expanded="false" aria-controls="site-links" data-nav-toggle>Menu</button>
       <nav class="ae-nav__links" id="site-links" aria-label="Primary navigation" data-nav-links>
         ${ROUTES.map((route) => navLink(route, currentPath)).join('')}
+        <a class="pg-nav-play" href="${currentPath === '/' ? '#play' : '/#play'}">Play THUMB-WAR <span aria-hidden="true">↗</span></a>
       </nav>
     </header>
     <main class="ae-page" id="main-content">${content}</main>
     <footer class="ae-footer">
       <div>
         <strong>Planetary Games</strong>
-        <span>Turning screentime into face time :)</span>
+        <span>Games that turn screen time into face time.</span>
       </div>
       <nav aria-label="Footer links">
         ${navLink({ label: 'Library', href: '/library' }, currentPath)}
@@ -154,7 +156,7 @@ function shell(content, currentPath) {
 
 function characterMarkup() {
   return `
-    <div class="character-display ae-character" data-character role="img" aria-label="Arcade Earth mascot animation" tabindex="0">
+    <div class="character-display ae-character" data-character role="button" aria-label="Make Scrapper sneeze and reveal Planetary Games" title="A little achoo brings us back" tabindex="0">
       <div class="character-fallback" data-character-fallback role="status" aria-live="polite" hidden>
         <div class="character-fallback__glyph" aria-hidden="true">
           <span></span>
@@ -202,45 +204,78 @@ function downloadCarousel(kind, label) {
 
 function homePage() {
   return `
-    <section class="ae-hero ae-hero--home">
-      <div class="ae-hero__copy">
-        <p class="ae-eyebrow">Planetary Games presents</p>
-        <h1><span>Arcade</span><span>Earth</span></h1>
-        <p>A connected universe of comics and real-world games, built to bring people together beyond the screen.</p>
-        <div class="ae-actions">
-          <a class="ae-button ae-button--primary" href="/comic">Explore the Comic</a>
-          <a class="ae-button" href="/games#thumb-war">Download Thumb War</a>
-        </div>
+    <section class="pg-hero" aria-labelledby="home-title">
+      <div class="pg-hero-copy">
+        <p class="pg-kicker"><span></span> Two players. One screen. It's on.</p>
+        <h1 id="home-title"><img src="/assets/style-lab/thumb-war-logo-cropped.png" alt="THUMB-WAR" fetchpriority="high"></h1>
+        <p class="pg-headline">Your next rival<br>is right <em>next to you.</em></p>
+        <p class="pg-intro">Challenge a friend to a fast, face-to-face battle on one screen, where quick thumbs and good timing settle the score.</p>
+        <a class="pg-button" href="#play">Play THUMB-WAR <span aria-hidden="true">↗</span></a>
+        <p class="pg-platforms">Available on iOS &amp; Android</p>
       </div>
-      <div class="ae-hero__visual">${characterMarkup()}</div>
-    </section>
-    <section class="ae-band" aria-label="Explore Arcade Earth">
-      ${[
-        ['Comic', 'Start with RISE OF VECTOR, the first Arcade Earth comic release.', '/comic'],
-        ['Games', 'Play THUMB-WAR now and follow URBAN ARCADE in development.', '/games'],
-        ['Library', 'Access the comics and media you own with a secure magic link.', '/library'],
-        ['Community', 'Join Discord for drops, playtests, and behind-the-scenes updates.', DISCORD_URL],
-      ].map(([title, copy, href]) => `
-        <a class="ae-tile" href="${href}">
-          <span>${title}</span>
-          <p>${copy}</p>
-        </a>
-      `).join('')}
-    </section>
-    <section class="ae-signup-panel">
-      <div>
-        <p class="ae-eyebrow">Updates</p>
-        <h2>Hear what's next.</h2>
+      <div class="pg-hero-media">
+        <div class="pg-media-heading"><span>THIS IS HOW WE PLAY.</span><span aria-hidden="true">↙</span></div>
+        <figure class="pg-irl-film">
+          <video muted loop playsinline preload="metadata" poster="/assets/home/thumb-war-together.webp" data-home-video aria-label="Two players battling face to face on the same device"><source src="/assets/home/thumb-war-together.mp4" type="video/mp4"></video>
+          <figcaption>ONE SCREEN. REAL COMPETITION.</figcaption>
+        </figure>
+        <figure class="pg-game-film">
+          <video muted loop playsinline preload="metadata" poster="/assets/home/thumb-war-gameplay.webp" data-home-video aria-label="Actual THUMB-WAR two-player gameplay"><source src="/assets/home/thumb-war-gameplay.mp4" type="video/mp4"></video>
+          <figcaption>ACTUAL GAMEPLAY</figcaption>
+        </figure>
+        <button class="pg-motion-control" type="button" data-video-toggle>Play footage</button>
       </div>
-      <form class="ae-form" aria-label="Join the Arcade Earth list" data-signup-form>
-        <label class="sr-only" for="launch-email">Email address</label>
-        <input id="launch-email" type="email" name="email" placeholder="you@example.com" autocomplete="email" required data-signup-input>
-        <label class="signup-honeypot" aria-hidden="true">Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label>
-        <button type="submit">Join list</button>
-        <p class="signup-feedback ae-form__feedback" data-signup-feedback aria-live="polite" hidden></p>
-      </form>
+    </section>
+    <div class="pg-play-strip" aria-label="Made to play together"><span>Grab a friend.</span><span>Pick a side.</span><span>Settle it with your thumbs. <b aria-hidden="true">↗</b></span></div>
+    <section class="pg-studio" id="studio" aria-labelledby="studio-title">
+      <div><p class="pg-kicker">Meet Planetary Games</p><h2 id="studio-title">Games that turn<br><span>screen time</span><br>into face time.</h2></div>
+      <div class="pg-studio-copy"><span class="pg-asterisk" aria-hidden="true">✳</span><p>We're a game studio making more reasons to play together, in person.</p><p>It starts with THUMB-WAR: a friend across the screen, a rivalry in the making, and a rematch you both insist on.</p><a class="pg-text-link" href="/games">Meet our games <span aria-hidden="true">↗</span></a></div>
+    </section>
+    <section class="pg-play" id="play" aria-labelledby="play-title">
+      <div><p class="pg-kicker">Bring your favorite rival</p><h2 id="play-title">Less scrolling.<br>More <em>“one more round.”</em></h2><p>Get THUMB-WAR. Find a friend. You've got a match.</p></div>
+      <div class="pg-store-links"><a class="pg-button" href="${APP_STORE_URL}" target="_blank" rel="noreferrer">Download for iOS <span aria-hidden="true">↗</span></a><a class="pg-button pg-button--outline" href="${PLAY_STORE_URL}" target="_blank" rel="noreferrer">Get it on Google Play <span aria-hidden="true">↗</span></a><span>Two players. One device.</span></div>
+    </section>
+    <section class="pg-extra" aria-labelledby="comic-title">
+      <a class="pg-comic-art" href="/comic" aria-label="Explore the Arcade Earth comic"><img src="/assets/comic%20page/hero%20image.png" alt="Artwork from Arcade Earth: Rise of Vector" loading="lazy"></a>
+      <div><p class="pg-kicker">A little extra from our universe</p><h2 id="comic-title">Games are our thing.<br>We've got stories, too.</h2><p>Meet the characters and world of Arcade Earth in <em>Rise of Vector</em>, our original comic.</p><a class="pg-text-link" href="/comic">Explore the comic <span aria-hidden="true">↗</span></a></div>
+    </section>
+    <section class="pg-community">
+      <div><p class="pg-kicker">Good games. Good company.</p><h2>Come hang out.</h2><p>Find your next rival, join playtests, and see what we're making.</p><a class="pg-text-link" href="${DISCORD_URL}" target="_blank" rel="noreferrer">Join our Discord <span aria-hidden="true">↗</span></a></div>
+      <div class="pg-signup"><h3>First dibs on what's next.</h3><p>New games, updates, and chances to play.</p>
+        <form class="ae-form" aria-label="Join the Planetary Games list" data-signup-form>
+          <label class="sr-only" for="launch-email">Email address</label>
+          <input id="launch-email" type="email" name="email" placeholder="Your email address" autocomplete="email" required data-signup-input>
+          <label class="signup-honeypot" aria-hidden="true">Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label>
+          <button type="submit">Count me in ↗</button>
+          <p class="signup-feedback ae-form__feedback" data-signup-feedback aria-live="polite" hidden></p>
+        </form>
+      </div>
     </section>
   `;
+}
+
+function initHomeVideos() {
+  const videos = [...document.querySelectorAll('[data-home-video]')];
+  const button = document.querySelector('[data-video-toggle]');
+  if (!button) return;
+  const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let wantsPlayback = !motion.matches;
+  let visible = true;
+  const sync = () => {
+    button.textContent = wantsPlayback ? 'Pause footage' : 'Play footage';
+    videos.forEach((video) => {
+      if (wantsPlayback && visible && !document.hidden) {
+        video.play().catch(() => { wantsPlayback = false; videos.forEach((item) => item.pause()); button.textContent = 'Play footage'; });
+      } else video.pause();
+    });
+  };
+  button.addEventListener('click', () => { wantsPlayback = !wantsPlayback; sync(); });
+  motion.addEventListener('change', () => { wantsPlayback = !motion.matches; sync(); });
+  document.addEventListener('visibilitychange', sync);
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; sync(); }).observe(button.closest('.pg-hero-media'));
+  }
+  sync();
 }
 
 function downloadPage() {
@@ -580,6 +615,19 @@ function initNav() {
     const expanded = toggle.getAttribute('aria-expanded') === 'true';
     toggle.setAttribute('aria-expanded', String(!expanded));
     links.toggleAttribute('data-open', !expanded);
+  });
+  const closeMenu = () => {
+    toggle.setAttribute('aria-expanded', 'false');
+    links.removeAttribute('data-open');
+  };
+  links.addEventListener('click', (event) => {
+    if (event.target.closest('a')) closeMenu();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && toggle.getAttribute('aria-expanded') === 'true') {
+      closeMenu();
+      toggle.focus();
+    }
   });
 }
 
@@ -970,6 +1018,7 @@ export function renderSite() {
   const app = document.querySelector('#app');
   const path = normalizePath(window.location.pathname);
   setMeta(path);
+  document.body.classList.toggle('pg-home', path === '/');
 
   let content;
   if (path === '/') content = homePage();
@@ -985,6 +1034,7 @@ export function renderSite() {
   else content = notFoundPage();
 
   app.innerHTML = shell(content, path);
+  initHomeVideos();
   initBackdropVideo();
   initNav();
   initSmoothScrollLinks();

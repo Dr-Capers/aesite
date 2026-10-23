@@ -508,7 +508,7 @@ export function initCharacter() {
         }
       }
     };
-    register(pointerRegion, 'pointerdown', handlePointerDownOnCharacter);
+    if (!mount.closest('.pg-brand')) register(pointerRegion, 'pointerdown', handlePointerDownOnCharacter);
 
     const BACKGROUND_INTERACTORS_SELECTOR =
       'button, a, input, textarea, select, label, [role="button"], [data-character], .footer-signup, .footer__social';

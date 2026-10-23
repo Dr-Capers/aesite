@@ -26,7 +26,7 @@ const STANDING_STATES = new Set([
   'looking',
   ...FINAL_DANCE_STATE_KEYS,
 ]);
-const MOBILE_ALLOWED_STATES = new Set(['idle', 'idleLong']);
+const MOBILE_ALLOWED_STATES = new Set(['idle', 'idleLong', 'sneeze']);
 const MOBILE_IDLE_FPS = OPTIMIZED_ANIMATION_FPS;
 const BUFFER_AHEAD_MIN = 3;
 const PRIORITY_FRAME_PRIMER_COUNT = 6;
