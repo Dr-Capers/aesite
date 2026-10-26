@@ -8,3 +8,6 @@ dist/
 !.env.example
 !.env.production
 !.env.development
+
+# Generated Firebase deployment caches
+.firebase/
