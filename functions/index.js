@@ -56,6 +56,8 @@ const sheetsAuth = sheetConfigReady
 const STRIPE_API_VERSION = '2024-12-18.acacia';
 const TOKEN_EXPIRY_DAYS = Number(process.env.COMIC_LIBRARY_TOKEN_EXPIRY_DAYS || 14);
 const SIGNED_URL_EXPIRY_MS = 15 * 60 * 1000;
+// Allow pauses, seeking, and larger downloads without expiring mid-session.
+const VIDEO_URL_EXPIRY_MS = 4 * 60 * 60 * 1000;
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY');
 const STRIPE_WEBHOOK_SECRET = defineSecret('STRIPE_WEBHOOK_SECRET');
@@ -105,7 +107,6 @@ const PRODUCT_CONFIG = {
     priceId: process.env.STRIPE_COMIC_MOTION_PRICE_ID || 'price_1TtvNzE6KbLJmYKbVET9MoGk',
     entitlements: ['comic-motion-stream-v1', 'comic-motion-download-v1'],
     fulfillmentType: 'digital',
-    hold: true,
   },
   'comic-physical': {
     name: 'Physical Edition',
@@ -121,7 +122,6 @@ const PRODUCT_CONFIG = {
     priceId: process.env.STRIPE_COMIC_ULTIMATE_PRICE_ID || 'price_1TtvazE6KbLJmYKbZXABu2g0',
     entitlements: ['comic-pdf-v1', 'comic-motion-stream-v1', 'comic-motion-download-v1', 'comic-bonus-marker-v1'],
     fulfillmentType: 'bundle',
-    hold: true,
     requiresShipping: true,
   },
 };
@@ -1086,10 +1086,11 @@ export const createAssetAccess = onRequest({ invoker: 'public' }, async (req, re
     }
 
     const file = admin.storage().bucket(bucketName).file(objectPath);
+    const expiresAt = Date.now() + (assetId.startsWith('comic-motion-') ? VIDEO_URL_EXPIRY_MS : SIGNED_URL_EXPIRY_MS);
     const [url] = await file.getSignedUrl({
       version: 'v4',
       action: 'read',
-      expires: Date.now() + SIGNED_URL_EXPIRY_MS,
+      expires: expiresAt,
       responseDisposition: action === 'download'
         ? `attachment; filename="${asset.filename}"`
         : `inline; filename="${asset.filename}"`,
@@ -1114,7 +1115,7 @@ export const createAssetAccess = onRequest({ invoker: 'public' }, async (req, re
 
     sendJson(res, 200, {
       url,
-      expiresAt: new Date(Date.now() + SIGNED_URL_EXPIRY_MS).toISOString(),
+      expiresAt: new Date(expiresAt).toISOString(),
     });
   } catch (error) {
     functions.logger.error('Failed to create asset access.', error);

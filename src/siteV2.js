@@ -26,9 +26,8 @@ const PRODUCTS = [
     title: 'Video Edition',
     price: '$14.99',
     description: 'A fully voice-acted video version of the story, built for fans who want to watch the comic come alive.',
-    cta: 'Coming Soon',
-    checkoutNote: 'Video Edition purchases are temporarily on hold while we finish launch access.',
-    hold: true,
+    cta: 'Buy Video Edition',
+    checkoutNote: 'Available now. Watch and download from your Library after payment.',
     image: '/assets/comic%20page/motion%20video%20comic.png',
   },
   {
@@ -46,10 +45,9 @@ const PRODUCTS = [
     name: 'Ultimate Bundle',
     title: 'Ultimate Bundle',
     price: '$44.99',
-    description: 'The complete launch bundle: printed comic, digital PDF, motion comic, and bonus Library access in one order.',
-    cta: 'Coming Soon',
-    checkoutNote: 'Ultimate Bundle purchases are temporarily on hold while we finalize all included formats.',
-    hold: true,
+    description: 'Printed comic, digital PDF, motion comic, and access to future Library bonuses in one order.',
+    cta: 'Buy Ultimate Bundle',
+    checkoutNote: 'Available now. Digital editions unlock after payment. $6.99 shipping to the lower 48 states and DC.',
     featured: true,
     image: '/assets/comic%20page/ultimate%20bundle.png',
   },
@@ -390,7 +388,7 @@ function comicPage() {
       <dialog class="ae-shipping-dialog" data-shipping-dialog aria-labelledby="shipping-title">
         <form class="ae-shipping-form" data-shipping-form>
           <h2 id="shipping-title">Where should we ship your comic?</h2>
-          <p>Physical Edition: $29.99 + $6.99 shipping, plus applicable tax. Ships to the lower 48 states and DC only.</p>
+          <p data-shipping-summary></p>
           <label>Full name<input name="name" autocomplete="shipping name" maxlength="100" required></label>
           <label>Street address<input name="line1" autocomplete="shipping address-line1" maxlength="100" required></label>
           <label>Apartment, suite, etc. (optional)<input name="line2" autocomplete="shipping address-line2" maxlength="100"></label>
@@ -711,9 +709,11 @@ function initDownloadCarousels() {
   });
 }
 
-function requestShippingAddress() {
+function requestShippingAddress(sku) {
   const dialog = document.querySelector('[data-shipping-dialog]');
   const form = dialog.querySelector('form');
+  const product = PRODUCTS.find((item) => item.sku === sku);
+  dialog.querySelector('[data-shipping-summary]').textContent = `${product.title}: ${product.price} + $6.99 shipping, plus applicable tax. Ships to the lower 48 states and DC only.`;
   return new Promise((resolve) => {
     let shipping = null;
     const submit = (event) => {
@@ -748,8 +748,9 @@ function initCheckout() {
   checkoutButtons.forEach((button) => {
     button.addEventListener('click', async () => {
       const sku = button.getAttribute('data-checkout-sku');
-      const shipping = sku === 'comic-physical' ? await requestShippingAddress() : undefined;
-      if (sku === 'comic-physical' && !shipping) return;
+      const requiresShipping = sku === 'comic-physical' || sku === 'comic-ultimate-bundle';
+      const shipping = requiresShipping ? await requestShippingAddress(sku) : undefined;
+      if (requiresShipping && !shipping) return;
       const original = button.textContent;
       const card = button.closest('[data-product-sku]');
       const status = card?.querySelector('[data-checkout-status]');
