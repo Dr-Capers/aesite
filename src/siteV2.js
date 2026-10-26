@@ -1,3 +1,6 @@
+import termsHtml from './legal/terms.html?raw';
+import privacyHtml from './legal/privacy.html?raw';
+
 import { SHIPPING_STATES, validateComicShipping } from '../functions/comicShipping.js';
 
 const DISCORD_URL = 'https://discord.gg/vhmaXxQQ3b';
@@ -72,6 +75,8 @@ const DOWNLOAD_MEDIA = {
 
 const routeMeta = {
   '/': ['THUMB-WAR | Planetary Games', 'Games that turn screen time into face time. Play THUMB-WAR, the same-screen battler from Planetary Games.'],
+  '/terms': ['Arcade Earth Terms and Conditions', 'Terms and conditions for Arcade Earth and Planetary Games.'],
+  '/privacy': ['Arcade Earth Privacy Policy', 'Privacy policy for Arcade Earth and Planetary Games.'],
   '/download': ['Arcade Earth Download Hub', 'Play Thumb War or read more about Arcade Earth: Rise of Vector.'],
   '/comic': ['Arcade Earth: Rise of Vector | Comic', 'Buy Arcade Earth: Rise of Vector digital, motion, physical, and bundle editions.'],
   '/games': ['Arcade Earth Games', 'Play THUMB-WAR, discover Urban Arcade, and try Scrapper’s Junk Jam, our browser game jam experiment.'],
@@ -85,6 +90,8 @@ const routeMeta = {
 
 function normalizePath(pathname) {
   const path = pathname.replace(/\/+$/, '') || '/';
+  if (path === '/legal/terms.html') return '/terms';
+  if (path === '/legal/privacy.html') return '/privacy';
   if (path === '/thumb-war') {
     return '/games';
   }
@@ -127,7 +134,7 @@ function shell(content, currentPath) {
     </div>`}
     <header class="ae-nav">
       <div class="pg-brand">
-        ${currentPath === '/' ? characterMarkup() : ''}
+        ${characterMarkup()}
         <a class="pg-wordmark" href="/" aria-label="Planetary Games home"><img src="/assets/planetary-games-logo-white.svg" alt="Planetary Games" width="1000" height="196"></a>
       </div>
       <button class="ae-nav__toggle" type="button" aria-expanded="false" aria-controls="site-links" data-nav-toggle>Menu</button>
@@ -147,8 +154,8 @@ function shell(content, currentPath) {
         <a href="${INSTAGRAM_URL}" target="_blank" rel="noreferrer">Instagram</a>
         <a href="${DISCORD_URL}" target="_blank" rel="noreferrer">Discord</a>
         <a href="mailto:hello@arcade.earth">Support</a>
-        <a href="/legal/terms.html">Terms</a>
-        <a href="/legal/privacy.html">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="/privacy">Privacy</a>
       </nav>
     </footer>
   `;
@@ -1041,6 +1048,7 @@ export function renderSite() {
 
   let content;
   if (path === '/') content = homePage();
+  else if (path === '/terms' || path === '/privacy') content = `<article class="ae-legal-page">${path === '/terms' ? termsHtml : privacyHtml}</article>`;
   else if (path === '/download') content = downloadPage();
   else if (path === '/comic') content = comicPage();
   else if (path === '/games') content = gamesPage();

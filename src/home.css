@@ -9,7 +9,7 @@
 .ae-nav .pg-nav-play { background: #dcff52; color: #171a18; padding: 12px 18px; letter-spacing: 0; }
 .ae-nav .pg-nav-play:hover { color: #171a18; background: #eaff9a; }
 .pg-home { background: #171a18; color: #f6f4e9; --pg-lime: #dcff52; }
-.pg-home .ae-nav { padding: 9px max(24px, calc((100vw - 1280px) / 2)); background: #171a18f5; }
+.ae-nav { padding: 9px max(24px, calc((100vw - 1280px) / 2)); background: #171a18f5; }
 .pg-home .ae-page { overflow: hidden; }
 .pg-home h1, .pg-home h2, .pg-home h3, .pg-home p, .pg-home figure { margin: 0; }
 .pg-home h2 { font: 800 clamp(44px, 5.5vw, 76px)/.98 'Barlow Condensed', sans-serif; letter-spacing: -.015em; text-transform: uppercase; }
@@ -60,11 +60,11 @@
 .pg-comic-art { display: block; height: 300px; overflow: hidden; background: #262b25; }
 .pg-comic-art img { width: 100%; height: 100%; object-fit: cover; transition: transform 300ms; }
 .pg-comic-art:hover img { transform: scale(1.03); }
+.pg-comic-art:not(.pg-jam-art) { background: #142b32 url("/assets/home/comic-swirl-background.webp") center 55% / cover no-repeat; }
+.pg-comic-art:not(.pg-jam-art) img { object-fit: contain; padding: 4px; box-sizing: border-box; }
 .pg-extra .pg-kicker { color: #b7bdb1; margin-bottom: 20px; }
 .pg-extra h2 { font-size: clamp(32px, 3.7vw, 48px); }
 .pg-extra p:not(.pg-kicker) { color: #b7bdb1; font-size: 14px; line-height: 1.8; max-width: 390px; margin-top: 20px; }
-.pg-comic-art:not(.pg-jam-art) { background: #142b32 url("/assets/home/comic-swirl-background.webp") center 55% / cover no-repeat; }
-.pg-comic-art:not(.pg-jam-art) img { object-fit: contain; padding: 4px; box-sizing: border-box; }
 .pg-extra--jam { padding-bottom: 45px; margin-bottom: 0; border-bottom: 1px solid #ffffff26; scroll-margin-top: 110px; }
 .pg-extra--jam + .pg-extra { margin-top: 45px; }
 .pg-extra .pg-jam-art { height: auto; aspect-ratio: 16 / 9; }
@@ -78,7 +78,7 @@
 .pg-signup .ae-form input { background: transparent; border-color: #66705d; }
 .pg-signup .ae-form button { background: #dcff52; color: #171a18; box-shadow: none; border: 1px solid #dcff52; }
 .pg-home .ae-footer { border-top: 1px solid #ffffff26; background: #121512; }
-.pg-home a:focus-visible, .pg-home button:focus-visible { outline: 3px solid #dcff52; outline-offset: 5px; }
+.pg-home a:focus-visible, .pg-home button:focus-visible, .ae-nav a:focus-visible, .ae-nav button:focus-visible { outline: 3px solid #dcff52; outline-offset: 5px; }
 .pg-home .pg-play a:focus-visible { outline-color: #171a18; }
 @media (min-width: 1500px) { .pg-hero { padding-top: 70px; padding-bottom: 70px; } }
 @media (max-width: 1000px) {
@@ -90,10 +90,10 @@
   .pg-extra, .pg-community { gap: 35px; }
 }
 @media (max-width: 760px) {
-  .pg-home .ae-nav { padding: 6px 18px; }
+  .ae-nav { padding: 6px 18px; }
   .pg-brand .ae-character.character-display { width: 50px; height: 50px; }
   .pg-wordmark img { width: clamp(145px, 42vw, 180px); }
-  .pg-home .ae-nav__links { background: #171a18; }
+  .ae-nav__links { background: #171a18; }
   .pg-hero { width: calc(100% - 40px); grid-template-columns: 1fr; padding: 35px 0 30px; gap: 32px; }
   .pg-hero h1 { margin: 23px 0; }
   .pg-hero h1 img { width: min(65%, 280px); }
@@ -124,10 +124,18 @@
 @media (prefers-reduced-motion: reduce) { .pg-wordmark--liquid { filter: none; } }
 
 @media (max-width: 720px) {
-  .pg-home .pg-wordmark {
+  .ae-nav .pg-wordmark {
     position: absolute;
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
   }
 }
+
+/* Legal documents use the same site shell and navigation. */
+.ae-legal-page { width: min(800px, calc(100% - 40px)); margin: 40px auto; padding: clamp(20px, 4vw, 40px); background: var(--v2-panel-strong); border: 1px solid var(--v2-line); border-radius: 16px; overflow-wrap: anywhere; }
+.ae-legal-page h1 { font-size: clamp(28px, 5vw, 40px); line-height: 1.15; }
+.ae-legal-page h3, .ae-legal-page h4 { margin: 28px 0 12px; }
+.ae-legal-page p, .ae-legal-page li { line-height: 1.75; }
+.ae-legal-page a { color: var(--v2-zap); }
+.ae-legal-page .legal-return { margin-top: 48px; }
