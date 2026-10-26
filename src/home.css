@@ -63,6 +63,12 @@
 .pg-extra .pg-kicker { color: #b7bdb1; margin-bottom: 20px; }
 .pg-extra h2 { font-size: clamp(32px, 3.7vw, 48px); }
 .pg-extra p:not(.pg-kicker) { color: #b7bdb1; font-size: 14px; line-height: 1.8; max-width: 390px; margin-top: 20px; }
+.pg-comic-art:not(.pg-jam-art) { background: #142b32 url("/assets/home/comic-swirl-background.webp") center 55% / cover no-repeat; }
+.pg-comic-art:not(.pg-jam-art) img { object-fit: contain; padding: 4px; box-sizing: border-box; }
+.pg-extra--jam { padding-bottom: 45px; margin-bottom: 0; border-bottom: 1px solid #ffffff26; scroll-margin-top: 110px; }
+.pg-extra--jam + .pg-extra { margin-top: 45px; }
+.pg-extra .pg-jam-art { height: auto; aspect-ratio: 16 / 9; }
+.pg-extra p.pg-jam-note { font-size: 11px; margin-top: 12px; }
 .pg-community { display: grid; grid-template-columns: 1fr 1fr; gap: 65px; border-top: 1px solid #ffffff26; width: min(1180px, calc(100% - 64px)); margin: auto; padding: 65px 0 80px; }
 .pg-community h2 { font-size: 48px; margin: 16px 0; }
 .pg-community p:not(.pg-kicker) { color: #b7bdb1; font-size: 13px; }

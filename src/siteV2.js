@@ -74,7 +74,7 @@ const routeMeta = {
   '/': ['THUMB-WAR | Planetary Games', 'Games that turn screen time into face time. Play THUMB-WAR, the same-screen battler from Planetary Games.'],
   '/download': ['Arcade Earth Download Hub', 'Play Thumb War or read more about Arcade Earth: Rise of Vector.'],
   '/comic': ['Arcade Earth: Rise of Vector | Comic', 'Buy Arcade Earth: Rise of Vector digital, motion, physical, and bundle editions.'],
-  '/games': ['Arcade Earth Games', 'Download Thumb War and explore future Arcade Earth games.'],
+  '/games': ['Arcade Earth Games', 'Play THUMB-WAR, discover Urban Arcade, and try Scrapper’s Junk Jam, our browser game jam experiment.'],
   '/comic/success': ['Arcade Earth Checkout', 'Confirm your Arcade Earth purchase and open your Library.'],
   '/library': ['Arcade Earth Library', 'Access purchased Arcade Earth comics and motion video comics.'],
   '/library/access': ['Arcade Earth Library Access', 'Request a secure magic link for your Arcade Earth Library.'],
@@ -235,8 +235,12 @@ function homePage() {
       <div><p class="pg-kicker">Bring your favorite rival</p><h2 id="play-title">Less scrolling.<br>More <em>“one more round.”</em></h2><p>Get THUMB-WAR. Find a friend. You've got a match.</p></div>
       <div class="pg-store-links"><a class="pg-button" href="${APP_STORE_URL}" target="_blank" rel="noreferrer">Download for iOS <span aria-hidden="true">↗</span></a><a class="pg-button pg-button--outline" href="${PLAY_STORE_URL}" target="_blank" rel="noreferrer">Get it on Google Play <span aria-hidden="true">↗</span></a><span>Two players. One device.</span></div>
     </section>
+    <section class="pg-extra pg-extra--jam" id="junk-jam" aria-labelledby="home-junk-jam-title">
+      <a class="pg-comic-art pg-jam-art" href="https://scrappers-junk-jam.web.app/" target="_blank" rel="noreferrer" aria-label="Play Scrapper’s Junk Jam in your browser"><img src="/assets/scrappers-junk-jam-keyart.webp" alt="Scrapper in the Junk Jam foundry" width="1280" height="720" loading="lazy" decoding="async"></a>
+      <div><p class="pg-kicker">Fresh from a game jam</p><h2 id="home-junk-jam-title">Scrapper’s Junk Jam</h2><p>Catch junk, stack pieces, and clear lines while the conveyors keep moving. A little game jam experiment from our studio, ready to play in your browser.</p><a class="pg-text-link" href="https://scrappers-junk-jam.web.app/" target="_blank" rel="noreferrer">Play Junk Jam <span aria-hidden="true">↗</span></a><p class="pg-jam-note">Desktop browser · Keyboard required</p></div>
+    </section>
     <section class="pg-extra" aria-labelledby="comic-title">
-      <a class="pg-comic-art" href="/comic" aria-label="Explore the Arcade Earth comic"><img src="/assets/comic%20page/hero%20image.png" alt="Artwork from Arcade Earth: Rise of Vector" loading="lazy"></a>
+      <a class="pg-comic-art" href="/comic" aria-label="Explore the Arcade Earth comic"><img src="/assets/comic%20page/physical%20edition.png" alt="Arcade Earth: Rise of Vector printed cover beside an open comic showing the interior pages" width="900" height="600" loading="lazy"></a>
       <div><p class="pg-kicker">A little extra from our universe</p><h2 id="comic-title">Games are our thing.<br>We've got stories, too.</h2><p>Meet the characters and world of Arcade Earth in <em>Rise of Vector</em>, our original comic.</p><a class="pg-text-link" href="/comic">Explore the comic <span aria-hidden="true">↗</span></a></div>
     </section>
     <section class="pg-community">
@@ -449,6 +453,21 @@ function gamesPage() {
           </div>
         </article>
       </div>
+
+      <article class="ae-games-feature ae-games-jam" id="scrappers-junk-jam" aria-labelledby="junk-jam-title">
+        <figure class="ae-games-art">
+          <img src="/assets/scrappers-junk-jam-keyart.webp" alt="Scrapper waving in a conveyor-filled foundry beneath the Scrapper’s Junk Jam logo" width="1280" height="720" loading="lazy" decoding="async">
+        </figure>
+        <div class="ae-games-project">
+          <p class="ae-pill">Game jam · Playable now</p>
+          <h2 id="junk-jam-title">Scrapper’s Junk Jam</h2>
+          <p>A little experiment from the studio, made for a game jam. Catch junk, stack pieces, and clear lines while the conveyors keep moving.</p>
+          <div class="ae-actions">
+            <a class="ae-button" href="https://scrappers-junk-jam.web.app/" target="_blank" rel="noreferrer">Play in browser <span aria-hidden="true">↗</span></a>
+          </div>
+          <p class="ae-games-jam__note">Desktop browser · Keyboard required</p>
+        </div>
+      </article>
 
       <section class="ae-games-manifesto">
         <p>Turning screentime into face time.</p>
