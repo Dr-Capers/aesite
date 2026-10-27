@@ -1,3 +1,4 @@
+import { COMIC_PRODUCTS as PRODUCTS } from './comicProducts.js';
 import termsHtml from './legal/terms.html?raw';
 import privacyHtml from './legal/privacy.html?raw';
 
@@ -8,50 +9,6 @@ const INSTAGRAM_URL = 'https://www.instagram.com/planetarygames_/';
 const APP_STORE_URL = 'https://apps.apple.com/us/app/thumb-war/id6476893306';
 const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.ArcadeEarthLLC.ThumbWar&hl=en_US';
 const LIBRARY_SESSION_KEY = 'arcadeEarthLibrarySession';
-
-const PRODUCTS = [
-  {
-    sku: 'comic-digital',
-    name: 'Digital Edition',
-    title: 'Digital Edition',
-    price: '$9.99',
-    description: 'Read Arcade Earth: Rise of Vector as a PDF across your devices, with secure Library access whenever you need it.',
-    cta: 'Buy Digital Comic',
-    checkoutNote: 'Opens secure Stripe Checkout. Library access is sent after payment.',
-    image: '/assets/comic%20page/digital%20edition.png',
-  },
-  {
-    sku: 'comic-motion',
-    name: 'Motion Video Comic',
-    title: 'Video Edition',
-    price: '$14.99',
-    description: 'A fully voice-acted video version of the story, built for fans who want to watch the comic come alive.',
-    cta: 'Buy Video Edition',
-    checkoutNote: 'Available now. Watch and download from your Library after payment.',
-    image: '/assets/comic%20page/motion%20video%20comic.png',
-  },
-  {
-    sku: 'comic-physical',
-    name: 'Physical Edition',
-    title: 'Physical Edition',
-    price: '$20.00',
-    description: 'The printed edition of Rise of Vector for collectors who want Arcade Earth on the shelf and in their hands.',
-    cta: 'Buy Physical Comic',
-    checkoutNote: 'In stock and ready to ship. $6.99 shipping to the lower 48 states and DC.',
-    image: '/assets/comic%20page/physical%20edition.png',
-  },
-  {
-    sku: 'comic-ultimate-bundle',
-    name: 'Ultimate Bundle',
-    title: 'Ultimate Bundle',
-    price: '$25.00',
-    description: 'Printed comic, digital PDF, motion comic, and access to future Library bonuses in one order.',
-    cta: 'Buy Ultimate Bundle',
-    checkoutNote: 'Available now. Digital editions unlock after payment. $6.99 shipping to the lower 48 states and DC.',
-    featured: true,
-    image: '/assets/comic%20page/ultimate%20bundle.png',
-  },
-];
 
 const ROUTES = [
   { label: 'Home', href: '/' },
@@ -76,7 +33,7 @@ const routeMeta = {
   '/terms': ['Arcade Earth Terms and Conditions', 'Terms and conditions for Arcade Earth and Planetary Games.'],
   '/privacy': ['Arcade Earth Privacy Policy', 'Privacy policy for Arcade Earth and Planetary Games.'],
   '/download': ['Arcade Earth Download Hub', 'Play Thumb War or read more about Arcade Earth: Rise of Vector.'],
-  '/comic': ['Arcade Earth: Rise of Vector | Comic', 'Buy Arcade Earth: Rise of Vector digital, motion, physical, and bundle editions.'],
+  '/comic': ['Arcade Earth: Rise of Vector | Comic', 'Get Arcade Earth: Rise of Vector as a Digital Comic Bundle or Physical Comic Bundle.'],
   '/games': ['Arcade Earth Games', 'Play THUMB-WAR, discover Urban Arcade, and try Scrapper’s Junk Jam, our browser game jam experiment.'],
   '/comic/success': ['Arcade Earth Checkout', 'Confirm your Arcade Earth purchase and open your Library.'],
   '/library': ['Arcade Earth Library', 'Access purchased Arcade Earth comics and motion video comics.'],
@@ -329,6 +286,7 @@ function productCards() {
       </figure>
       <div class="ae-product-card__info">
         <p class="ae-product-card__description">${product.description}</p>
+        ${product.includes ? `<ul>${product.includes.map(item => `<li>${item}</li>`).join('')}</ul>` : ''}
       </div>
       <div class="ae-checkout-control">
         ${product.hold
@@ -363,15 +321,15 @@ function comicPage() {
         <h1>Rise of Vector</h1>
         <p>Dr. Capers is a game-obsessed inventor. P1 is a digital hero from a ruined future. Together, they have to turn Earth into a planet-sized video game before Vector eats every timeline left.</p>
         <div class="ae-actions">
-          <a class="ae-button ae-button--primary" href="#editions" data-smooth-scroll>Pick an Edition</a>
+          <a class="ae-button ae-button--primary" href="#editions" data-smooth-scroll>Choose a Bundle</a>
           <a class="ae-button" href="/library">Open Library</a>
         </div>
       </div>
     </section>
     <section class="ae-section" id="editions">
       <div class="ae-section__head">
-        <p class="ae-eyebrow">Launch editions</p>
-        <h2>Choose your format.</h2>
+        <p class="ae-eyebrow">Rise of Vector • Book One</p>
+        <h2>Choose your bundle.</h2>
         ${cancelled ? `
           <div class="ae-checkout-alert" role="status">
             <strong>Checkout was cancelled.</strong>
@@ -380,7 +338,7 @@ function comicPage() {
         ` : ''}
       </div>
       <div class="ae-checkout-guide" aria-label="Checkout steps">
-        <span><strong>1</strong> Pick an edition</span>
+        <span><strong>1</strong> Choose a bundle</span>
         <span><strong>2</strong> Pay securely on Stripe</span>
         <span><strong>3</strong> Receive your order confirmation</span>
       </div>
@@ -401,7 +359,7 @@ function comicPage() {
         </form>
       </dialog>
       <div class="ae-note-strip">
-        <p>The Physical Edition is in stock. Shipping is available to the lower 48 US states and Washington, DC only.</p>
+        <p>The Physical Comic Bundle is in stock. Shipping is available to the lower 48 US states and Washington, DC only.</p>
         <p>Standard Shipping is $6.99 and usually arrives in 5-10 business days after fulfillment.</p>
         <p>For access problems, damaged shipments, or fulfillment mistakes, contact hello@arcade.earth.</p>
       </div>
@@ -411,7 +369,7 @@ function comicPage() {
       <details open><summary>How do I access my digital comic later?</summary><p>Use the Arcade Earth Library link from your email, or request a new magic link from the Library access page.</p></details>
       <details><summary>Are downloads limited?</summary><p>Signed download links are short-lived, but normal customer redownloads are supported.</p></details>
       <details><summary>How does the digital edition work on mobile?</summary><p>For the best reading experience, we recommend using a computer. Mobile browsers handle PDFs differently. If the in-page reader feels cramped, tap Download PDF from your Library. On some phones this opens the comic in the browser or system PDF viewer instead of saving a file, which usually gives a better mobile reading experience. You can request a fresh Library link later if the signed link expires.</p></details>
-      <details><summary>Is the physical comic digital too?</summary><p>The standalone Physical Edition is print-only. The Digital Edition is sold separately. The Ultimate Bundle is coming soon.</p></details>
+      <details><summary>Is the physical comic digital too?</summary><p>Yes. The Physical Comic Bundle includes the printed comic, digital PDF, and motion comic. Read and watch from your Library as soon as payment is confirmed while your printed copy ships.</p></details>
       <details><summary>Where do you ship?</summary><p>We currently ship to the lower 48 US states and Washington, DC. Alaska, Hawaii, US territories, military addresses, and international destinations are not supported yet.</p></details>
       <details><summary>How much is shipping?</summary><p>Standard shipping is a flat $6.99 USD and usually arrives in 5-10 business days after fulfillment.</p></details>
       <details><summary>Is there a Book Two?</summary><p>Book Two is coming. Follow Planetary Games on Instagram or join the email list to get updates.</p></details>
@@ -748,7 +706,7 @@ function initCheckout() {
   checkoutButtons.forEach((button) => {
     button.addEventListener('click', async () => {
       const sku = button.getAttribute('data-checkout-sku');
-      const requiresShipping = sku === 'comic-physical' || sku === 'comic-ultimate-bundle';
+      const requiresShipping = Boolean(PRODUCTS.find(product => product.sku === sku)?.requiresShipping);
       const shipping = requiresShipping ? await requestShippingAddress(sku) : undefined;
       if (requiresShipping && !shipping) return;
       const original = button.textContent;

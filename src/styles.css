@@ -2545,6 +2545,14 @@ summary:focus-visible {
   max-width: 24rem;
 }
 
+.ae-product-card__info ul {
+  margin: 0.75rem 0 0;
+  padding-left: 1.2rem;
+  text-align: left;
+  color: var(--v2-muted);
+  line-height: 1.5;
+}
+
 .ae-product-card__description {
   margin: 0;
   max-width: 32ch;

@@ -1,3 +1,4 @@
+import { PRODUCT_CONFIG, getPurchasableComic } from './comicProducts.js';
 import * as functions from 'firebase-functions';
 import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { onRequest } from 'firebase-functions/v2/https';
@@ -92,39 +93,6 @@ const ALLOWED_SITE_BASE_HOSTS = new Set([
   'localhost:5173',
   '127.0.0.1:5173',
 ]);
-
-const PRODUCT_CONFIG = {
-  'comic-digital': {
-    name: 'Digital Edition',
-    productId: process.env.STRIPE_COMIC_DIGITAL_PRODUCT_ID || 'prod_Utiohi44L9R3OW',
-    priceId: process.env.STRIPE_COMIC_DIGITAL_PRICE_ID || 'price_1TtvMUE6KbLJmYKbvXLGiUFD',
-    entitlements: ['comic-pdf-v1'],
-    fulfillmentType: 'digital',
-  },
-  'comic-motion': {
-    name: 'Motion Video Comic',
-    productId: process.env.STRIPE_COMIC_MOTION_PRODUCT_ID || 'prod_UtipfqhE0j4OHP',
-    priceId: process.env.STRIPE_COMIC_MOTION_PRICE_ID || 'price_1TtvNzE6KbLJmYKbVET9MoGk',
-    entitlements: ['comic-motion-stream-v1', 'comic-motion-download-v1'],
-    fulfillmentType: 'digital',
-  },
-  'comic-physical': {
-    name: 'Physical Edition',
-    productId: process.env.STRIPE_COMIC_PHYSICAL_PRODUCT_ID || 'prod_UtivbVKP3daOLI',
-    priceId: process.env.STRIPE_COMIC_PHYSICAL_PRICE_ID || 'price_1UVFS2E6KbLJmYKbb9dVhYFS',
-    entitlements: [],
-    fulfillmentType: 'physical',
-    requiresShipping: true,
-  },
-  'comic-ultimate-bundle': {
-    name: 'Ultimate Bundle',
-    productId: process.env.STRIPE_COMIC_ULTIMATE_PRODUCT_ID || 'prod_Utj3C28MrpeyoU',
-    priceId: process.env.STRIPE_COMIC_ULTIMATE_PRICE_ID || 'price_1UVFS2E6KbLJmYKbEg6vsqed',
-    entitlements: ['comic-pdf-v1', 'comic-motion-stream-v1', 'comic-motion-download-v1', 'comic-bonus-marker-v1'],
-    fulfillmentType: 'bundle',
-    requiresShipping: true,
-  },
-};
 
 const ASSET_CONFIG = {
   'comic-pdf-v1': {
@@ -820,7 +788,7 @@ export const createComicCheckoutSession = onRequest({ invoker: 'public', secrets
 
   try {
     const { sku, quantity = 1, shipping } = req.body || {};
-    const config = PRODUCT_CONFIG[sku];
+    const config = getPurchasableComic(sku);
     const count = Number(quantity);
 
     if (!config || config.hold || !Number.isInteger(count) || count !== 1) {
