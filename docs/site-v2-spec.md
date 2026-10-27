@@ -328,8 +328,8 @@ Stripe Products and Prices from `/Users/michaelschumaker/Downloads/products.csv`
 | --- | --- | --- | --- | --- |
 | `comic-digital` | `prod_Utiohi44L9R3OW` | `price_1TtvMUE6KbLJmYKbvXLGiUFD` | `$9.99 USD` | `txcd_10302000` |
 | `comic-motion` | `prod_UtipfqhE0j4OHP` | `price_1TtvNzE6KbLJmYKbVET9MoGk` | `$14.99 USD` | `txcd_10804003` |
-| `comic-physical` | `prod_UtivbVKP3daOLI` | `price_1TtvTME6KbLJmYKb7FEAaeoQ` | `$29.99 USD` | `txcd_35010000` |
-| `comic-ultimate-bundle` | `prod_Utj3C28MrpeyoU` | `price_1TtvazE6KbLJmYKbZXABu2g0` | `$44.99 USD` | `txcd_10303001` |
+| `comic-physical` | `prod_UtivbVKP3daOLI` | `price_1UVFS2E6KbLJmYKbb9dVhYFS` | `$20.00 USD` | `txcd_35010000` |
+| `comic-ultimate-bundle` | `prod_Utj3C28MrpeyoU` | `price_1UVFS2E6KbLJmYKbEg6vsqed` | `$25.00 USD` | `txcd_10303001` |
 
 Stripe product names:
 

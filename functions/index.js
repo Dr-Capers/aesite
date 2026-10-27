@@ -111,7 +111,7 @@ const PRODUCT_CONFIG = {
   'comic-physical': {
     name: 'Physical Edition',
     productId: process.env.STRIPE_COMIC_PHYSICAL_PRODUCT_ID || 'prod_UtivbVKP3daOLI',
-    priceId: process.env.STRIPE_COMIC_PHYSICAL_PRICE_ID || 'price_1TtvTME6KbLJmYKb7FEAaeoQ',
+    priceId: process.env.STRIPE_COMIC_PHYSICAL_PRICE_ID || 'price_1UVFS2E6KbLJmYKbb9dVhYFS',
     entitlements: [],
     fulfillmentType: 'physical',
     requiresShipping: true,
@@ -119,7 +119,7 @@ const PRODUCT_CONFIG = {
   'comic-ultimate-bundle': {
     name: 'Ultimate Bundle',
     productId: process.env.STRIPE_COMIC_ULTIMATE_PRODUCT_ID || 'prod_Utj3C28MrpeyoU',
-    priceId: process.env.STRIPE_COMIC_ULTIMATE_PRICE_ID || 'price_1TtvazE6KbLJmYKbZXABu2g0',
+    priceId: process.env.STRIPE_COMIC_ULTIMATE_PRICE_ID || 'price_1UVFS2E6KbLJmYKbEg6vsqed',
     entitlements: ['comic-pdf-v1', 'comic-motion-stream-v1', 'comic-motion-download-v1', 'comic-bonus-marker-v1'],
     fulfillmentType: 'bundle',
     requiresShipping: true,
